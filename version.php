@@ -28,7 +28,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_apiquery';
-$plugin->version   = 2026040800;
+$plugin->version   = 2026041700;
 $plugin->requires  = 2022112800; // Moodle 4.1+ (oldest supported LTS)
 $plugin->maturity  = MATURITY_STABLE;
 $plugin->release   = '1.1.0';

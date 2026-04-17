@@ -18,8 +18,7 @@ Moodle's webservice layer is powerful but requires PHP code for every new endpoi
 |---|---|
 | **Visual query editor** | Create, edit, enable/disable queries from the Moodle admin panel — no deployments needed |
 | **Typed parameters** | Declare each `:placeholder` with type (`int`, `float`, `bool`, `text`), required/optional flag, and default value |
-| **SQL security validator** | Blocks dangerous keywords and access to sensitive tables before saving |
-| **DML support** | `INSERT`, `UPDATE`, `DELETE` allowed with an explicit confirmation step |
+| **SQL security validator** | Only `SELECT` allowed — blocks `INSERT`, `UPDATE`, `DELETE`, `DROP`, and access to sensitive tables |
 | **Interactive tester** | Test any query with real parameters directly from the UI before going live |
 | **Execution logs** | Every API call is logged with timing, row count, and errors |
 | **Export / Import** | Move queries between Moodle instances as a JSON file |
@@ -142,10 +141,10 @@ moodlewsrestformat=json
 
 ## Security
 
-- **SQL Validator** blocks destructive keywords (`DROP`, `TRUNCATE`, `ALTER`, `EXEC`, `SLEEP`, etc.) and access to sensitive tables (`config`, `external_tokens`, `sessions`, `user_password_history`, etc.)
+- **Only `SELECT` is allowed** — `INSERT`, `UPDATE`, `DELETE`, `REPLACE` are blocked at save time, same as `DROP`, `TRUNCATE`, `ALTER`, etc.
+- **SQL Validator** also blocks access to sensitive tables (`config`, `external_tokens`, `sessions`, `user_password_history`, etc.)
 - Only **named placeholders** (`:param`) are allowed — positional `?` parameters are rejected
 - **Multiple statements** (semicolons) are blocked
-- `INSERT` / `UPDATE` / `DELETE` require an explicit confirmation step in the UI before saving
 - API access requires the `local/apiquery:execute` Moodle capability
 - Admin UI access requires the `local/apiquery:manage` capability
 

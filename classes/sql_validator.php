@@ -40,9 +40,7 @@ class sql_validator {
      * DML operations that are allowed but trigger a warning.
      * The admin must explicitly confirm before saving.
      */
-    private const WARNING_KEYWORDS = [
-        'DELETE', 'UPDATE', 'INSERT', 'REPLACE',
-    ];
+    private const WARNING_KEYWORDS = [];
 
     /**
      * Always-forbidden operations — destructive or system-level.
@@ -50,6 +48,7 @@ class sql_validator {
      * Note: keywords with spaces use \s+ to match newlines and multiple spaces.
      */
     private const FORBIDDEN_KEYWORDS = [
+        'DELETE', 'UPDATE', 'INSERT', 'REPLACE',
         'DROP', 'TRUNCATE', 'CREATE', 'ALTER', 'RENAME',
         'GRANT', 'REVOKE', 'EXEC', 'EXECUTE', 'CALL',
         'INTO\s+OUTFILE', 'LOAD\s+DATA', 'BENCHMARK', 'SLEEP',

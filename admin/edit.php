@@ -164,7 +164,7 @@ $PAGE->requires->js_call_amd('local_apiquery/edit_params', 'init', [[
 echo $OUTPUT->header();
 echo $OUTPUT->heading($page_title);
 
-// ── DML WARNING CONFIRMATION SCREEN ──────────────────────────────────────
+// DML WARNING CONFIRMATION SCREEN
 // If the SQL contains DML (DELETE, UPDATE, INSERT, REPLACE) show warnings
 // and require explicit confirmation before saving.
 if (!empty($needs_confirmation) && empty($errors)):
