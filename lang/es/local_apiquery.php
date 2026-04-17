@@ -64,6 +64,10 @@ $string['privacy:metadata:local_apiquery_logs:userid']      = 'El ID del usuario
 $string['privacy:metadata:local_apiquery_logs:params_used'] = 'Los parámetros enviados en la llamada a la API (puede incluir IDs de cursos o marcas de tiempo).';
 $string['privacy:metadata:local_apiquery_logs:timecreated'] = 'La fecha y hora en que se realizó la llamada a la API.';
 
+$string['privacy:metadata:local_apiquery_queries']            = 'Consultas SQL personalizadas creadas por administradores.';
+$string['privacy:metadata:local_apiquery_queries:createdby']  = 'El ID del usuario que creó esta consulta.';
+$string['privacy:metadata:local_apiquery_queries:timecreated'] = 'La fecha y hora en que se creó la consulta.';
+
 // ── DML warning (confirmation screen) ─────────────────────────────────────────
 $string['warning_dml']          = 'Esta consulta contiene operaciones de modificación de datos (INSERT/UPDATE/DELETE/REPLACE). Úsela con precaución.';
 $string['warning_dml_title']    = '⚠️ Esta query contiene operaciones que modifican datos en Moodle.';
@@ -102,6 +106,11 @@ $string['add_param']          = '+ Agregar parámetro';
 $string['placeholder_shortname_ex']   = 'Ej: get_grades_since';
 $string['placeholder_displayname_ex'] = 'Ej: Calificaciones modificadas desde fecha';
 $string['placeholder_description_ex'] = 'Qué retorna esta query y cuándo usarla...';
+$string['placeholder_sql_ex']         = 'SELECT gg.userid, gg.finalgrade, gg.timemodified, gi.itemmodule
+FROM {grade_grades} gg
+JOIN {grade_items} gi ON gi.id = gg.itemid
+WHERE gg.timemodified > :since
+AND gi.courseid IN (:courseids)';
 $string['placeholder_no_default']     = 'Vacío = sin default';
 $string['placeholder_param_name']     = 'nombre_param';
 
@@ -141,6 +150,7 @@ $string['col_date']     = 'Fecha';
 
 // ── Export / Import ───────────────────────────────────────────────────────────
 $string['export_queries']            = 'Exportar consultas';
+$string['export_json_encode_error']  = 'Error de codificación JSON: {$a}';
 $string['export_select_title']       = 'Selecciona las consultas a exportar';
 $string['export_select_all']         = 'Seleccionar todo';
 $string['export_deselect_all']       = 'Deseleccionar todo';
@@ -160,7 +170,23 @@ $string['import_success']            = '{$a} consulta(s) importada(s) correctame
 $string['import_skipped']            = '{$a} consulta(s) omitida(s) (el nombre corto ya existe).';
 $string['import_overwritten']        = '{$a} consulta(s) sobrescrita(s).';
 $string['import_invalid_file']       = 'Archivo inválido. Por favor sube un archivo JSON de exportación de este plugin.';
+$string['import_json_decode_error']  = 'Archivo JSON inválido. Error: {$a}';
+$string['import_structure_error']    = 'Estructura de archivo inválida. {$a}';
+$string['import_debug_structure']    = 'is_array={$a->is_array}, has_meta={$a->has_meta}, has_queries={$a->has_queries}, plugin={$a->plugin}';
+$string['import_debug_yes']          = 'sí';
+$string['import_debug_no']           = 'no';
+$string['import_debug_missing']      = 'faltante';
 $string['import_no_queries']         = 'El archivo no contiene consultas.';
+$string['import_upload_error_code']  = 'Código de error de carga: {$a}';
+$string['import_upload_no_file']     = 'No se cargó ningún archivo';
+$string['import_upload_ini_size']    = 'El archivo excede upload_max_filesize';
+$string['import_upload_form_size']   = 'El archivo excede MAX_FILE_SIZE';
+$string['import_upload_tmp']         = 'Tmp: {$a}';
+$string['import_upload_tmp_empty']   = 'vacío';
+$string['import_upload_tmp_present'] = 'presente';
+$string['import_upload_valid']       = 'Carga válida: {$a}';
+$string['import_upload_valid_yes']   = 'sí';
+$string['import_upload_valid_no']    = 'no';
 $string['import_source_info']        = 'Origen: {$a->site} &mdash; Moodle {$a->release} &mdash; Exportado el {$a->date}';
 $string['import_col_status']         = 'Estado de importación';
 $string['import_status_new']         = 'Nueva';
@@ -171,8 +197,9 @@ $string['warning_version_major_mismatch']      = 'Diferencia de versión mayor d
 $string['warning_version_major_mismatch_desc'] = 'El archivo fue exportado desde Moodle {$a->exported} y este sitio usa Moodle {$a->current}. Esta es una diferencia de versión significativa. Las consultas SQL pueden referenciar tablas o columnas que ya no existen o que fueron reestructuradas. Se recomienda fuertemente: importar como desactivadas y probar cada consulta individualmente.';
 
 // ── Webservice API runtime messages (external.php) ───────────────────────────
-$string['error_query_execute']         = 'Error al ejecutar la query: {$a}';
-$string['error_required_param_missing']= 'El parámetro requerido \'{$a}\' no fue enviado.';
+$string['error_query_execute']           = 'Error al ejecutar la query: {$a}';
+$string['error_required_param_missing']  = 'El parámetro requerido \'{$a}\' no fue enviado.';
+$string['error_sql_validation_failed']   = 'La validación SQL falló al momento de ejecutar:';
 
 // ── Webservice parameter/return descriptions (external.php) ──────────────────
 $string['ws_shortname_desc']     = 'Nombre corto de la query a ejecutar';

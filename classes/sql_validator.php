@@ -82,23 +82,23 @@ class sql_validator {
         $errors   = [];
         $warnings = [];
 
-        $sqlTrimmed = trim($sql);
+        $sql_trimmed = trim($sql);
 
         // 1. Check for fully forbidden keywords.
         // Keywords containing \s+ are already regex expressions — do not use preg_quote on them.
         foreach (self::FORBIDDEN_KEYWORDS as $keyword) {
             $pattern = '/\b' . $keyword . '\b/i';
-            if (preg_match($pattern, $sqlTrimmed)) {
+            if (preg_match($pattern, $sql_trimmed)) {
                 // Para el mensaje, normalizar el keyword (quitar \s+) para mostrarlo legible.
-                $displayKeyword = preg_replace('/\\\\s\+/', ' ', $keyword);
-                $errors[] = get_string('error_forbidden_keyword', 'local_apiquery', $displayKeyword);
+                $display_keyword = preg_replace('/\\\\s\+/', ' ', $keyword);
+                $errors[] = get_string('error_forbidden_keyword', 'local_apiquery', $display_keyword);
             }
         }
 
         // 2. Check for warning-level keywords (DML allowed but dangerous).
         foreach (self::WARNING_KEYWORDS as $keyword) {
             $pattern = '/\b' . preg_quote($keyword, '/') . '\b/i';
-            if (preg_match($pattern, $sqlTrimmed)) {
+            if (preg_match($pattern, $sql_trimmed)) {
                 $warnings[] = get_string('warning_keyword_dml', 'local_apiquery', $keyword);
             }
         }
@@ -108,25 +108,25 @@ class sql_validator {
         // (e.g. {local_config_backup} must not be blocked just because it contains "config").
         foreach (self::FORBIDDEN_TABLES as $table) {
             $pattern = '/\{' . preg_quote($table, '/') . '\}/i';
-            if (preg_match($pattern, $sqlTrimmed)) {
+            if (preg_match($pattern, $sql_trimmed)) {
                 $errors[] = get_string('error_forbidden_table', 'local_apiquery', $table);
             }
         }
 
         // 4. Disallow multiple statements separated by semicolons.
-        $statements = array_filter(array_map('trim', explode(';', $sqlTrimmed)), fn($s) => !empty($s));
+        $statements = array_filter(array_map('trim', explode(';', $sql_trimmed)), fn($s) => !empty($s));
         if (count($statements) > 1) {
             $errors[] = get_string('error_multiple_statements', 'local_apiquery');
         }
 
         // 5. Reject positional placeholders (?).
-        if (preg_match('/\?(?!\?)/', $sqlTrimmed)) {
+        if (preg_match('/\?(?!\?)/', $sql_trimmed)) {
             $errors[] = get_string('error_positional_params', 'local_apiquery');
         }
 
         // 6. Detect unique placeholders in the SQL.
         // If :since appears twice it is still one parameter — same value in both positions.
-        preg_match_all('/:([a-zA-Z_][a-zA-Z0-9_]*)/', $sqlTrimmed, $matches);
+        preg_match_all('/:([a-zA-Z_][a-zA-Z0-9_]*)/', $sql_trimmed, $matches);
         $placeholders = array_unique($matches[1] ?? []);
 
         return [
@@ -141,21 +141,21 @@ class sql_validator {
      * match exactly those used in the SQL.
      *
      * @param  string $sql
-     * @param  array  $declaredParams  [{name, type, required, default}]
+     * @param  array  $declared_params  [{name, type, required, default}]
      * @return array  consistency errors
      */
-    public static function validate_params_consistency(string $sql, array $declaredParams): array {
+    public static function validate_params_consistency(string $sql, array $declared_params): array {
         $errors = [];
 
         preg_match_all('/:([a-zA-Z_][a-zA-Z0-9_]*)/', $sql, $matches);
-        $placeholdersInSql = array_unique($matches[1] ?? []);
-        $declaredNames     = array_column($declaredParams, 'name');
+        $placeholders_in_sql = array_unique($matches[1] ?? []);
+        $declared_names     = array_column($declared_params, 'name');
 
-        foreach (array_diff($placeholdersInSql, $declaredNames) as $name) {
+        foreach (array_diff($placeholders_in_sql, $declared_names) as $name) {
             $errors[] = get_string('error_param_undeclared', 'local_apiquery', $name);
         }
 
-        foreach (array_diff($declaredNames, $placeholdersInSql) as $name) {
+        foreach (array_diff($declared_names, $placeholders_in_sql) as $name) {
             $errors[] = get_string('error_param_notinquery', 'local_apiquery', $name);
         }
 

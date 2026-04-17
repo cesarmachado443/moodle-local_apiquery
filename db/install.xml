@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="local/apiquery/db" VERSION="20260407" COMMENT="Tabla para queries SQL configuradas via UI">
+<XMLDB PATH="local/apiquery/db" VERSION="20260407" COMMENT="Database tables for SQL queries configured via admin UI">
   <TABLES>
-    <TABLE NAME="local_apiquery_queries" COMMENT="Queries SQL configuradas por el administrador">
+    <TABLE NAME="local_apiquery_queries" COMMENT="SQL queries configured by administrators">
       <FIELDS>
         <FIELD NAME="id"           TYPE="int"  LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="shortname"    TYPE="char" LENGTH="100" NOTNULL="true"/>
@@ -23,7 +23,7 @@
       </INDEXES>
     </TABLE>
 
-    <TABLE NAME="local_apiquery_logs" COMMENT="Log de ejecuciones de queries via API">
+    <TABLE NAME="local_apiquery_logs" COMMENT="Execution logs of queries called via API">
       <FIELDS>
         <FIELD NAME="id"            TYPE="int"  LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="query_id"      TYPE="int"  LENGTH="10" NOTNULL="true"/>

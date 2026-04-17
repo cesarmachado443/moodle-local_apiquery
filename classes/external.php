@@ -63,7 +63,7 @@ class external extends \core_external\external_api {
             'params' => new \external_multiple_structure(
                 new \external_single_structure([
                     'name'  => new \external_value(PARAM_ALPHANUMEXT, get_string('ws_param_name_desc',  'local_apiquery')),
-                    'value' => new \external_value(PARAM_RAW,         get_string('ws_param_value_desc', 'local_apiquery')),
+                    'value' => new \external_value(PARAM_TEXT,        get_string('ws_param_value_desc', 'local_apiquery')),
                 ]),
                 get_string('ws_params_desc', 'local_apiquery'),
                 VALUE_DEFAULT,
@@ -75,7 +75,7 @@ class external extends \core_external\external_api {
     public static function execute_query(string $shortname, array $params = []): array {
         global $DB, $USER;
 
-        $validatedParams = self::validate_parameters(
+        $validated_params = self::validate_parameters(
             self::execute_query_parameters(),
             ['shortname' => $shortname, 'params' => $params]
         );
@@ -84,42 +84,55 @@ class external extends \core_external\external_api {
         self::validate_context($context);
         require_capability('local/apiquery:execute', $context);
 
-        $startTime = microtime(true);
-        $logEntry  = ['query_id' => null, 'userid' => $USER->id, 'timecreated' => time()];
+        $start_time = microtime(true);
+        $log_entry  = ['query_id' => null, 'userid' => $USER->id, 'timecreated' => time()];
 
         try {
-            $queryRecord = $DB->get_record(
+            $query_record = $DB->get_record(
                 'local_apiquery_queries',
-                ['shortname' => $validatedParams['shortname'], 'enabled' => 1],
+                ['shortname' => $validated_params['shortname'], 'enabled' => 1],
                 '*',
                 MUST_EXIST
             );
 
-            $logEntry['query_id'] = $queryRecord->id;
+            $log_entry['query_id'] = $query_record->id;
 
-            $sqlParams = self::build_sql_params($queryRecord, $validatedParams['params']);
+            // Re-validate SQL before execution (defense-in-depth security).
+            // This protects against queries that bypassed admin validation
+            // through direct database manipulation, imports, or compromised data.
+            $validation = \local_apiquery\sql_validator::validate($query_record->sqlquery);
+            if (!empty($validation['errors'])) {
+                throw new \moodle_exception(
+                    'error',
+                    'local_apiquery',
+                    '',
+                    get_string('error_sql_validation_failed', 'local_apiquery') . ' ' . implode(', ', $validation['errors'])
+                );
+            }
+
+            $sql_params = self::build_sql_params($query_record, $validated_params['params']);
 
             // Expand duplicates: if :since appears twice in the SQL, Moodle
             // needs 2 entries in the params array. expand_duplicate_params renames
             // the 2nd occurrence to :since_dup2 in the SQL and duplicates the value.
-            $expanded  = self::expand_duplicate_params($queryRecord->sqlquery, $sqlParams);
-            $finalSql  = $expanded['sql'];
-            $finalParams = $expanded['params'];
+            $expanded  = self::expand_duplicate_params($query_record->sqlquery, $sql_params);
+            $final_sql  = $expanded['sql'];
+            $final_params = $expanded['params'];
 
-            $logEntry['params_used'] = json_encode($finalParams);
+            $log_entry['params_used'] = json_encode($final_params);
 
             // Detect if query is DML (INSERT/UPDATE/DELETE/REPLACE) or SELECT.
-            $sqlTrimmed = ltrim($finalSql);
-            $isDml = (bool) preg_match('/^(INSERT|UPDATE|DELETE|REPLACE)\b/i', $sqlTrimmed);
+            $sql_trimmed = ltrim($final_sql);
+            $is_dml = (bool) preg_match('/^(INSERT|UPDATE|DELETE|REPLACE)\b/i', $sql_trimmed);
 
             $rows = [];
-            if ($isDml) {
+            if ($is_dml) {
                 // DML: use execute() — returns true/false, not rows.
-                $DB->execute($finalSql, $finalParams);
+                $DB->execute($final_sql, $final_params);
                 $rows = [['affected' => get_string('dml_success', 'local_apiquery')]];
             } else {
                 // SELECT: use get_recordset_sql which does not require a unique first column.
-                $recordset = $DB->get_recordset_sql($finalSql, $finalParams);
+                $recordset = $DB->get_recordset_sql($final_sql, $final_params);
                 foreach ($recordset as $record) {
                     $rows[] = (array) $record;
                 }
@@ -127,29 +140,29 @@ class external extends \core_external\external_api {
             }
 
             // Serialize to [{key, value}] format required by Moodle webservices.
-            $serializedRows = self::serialize_rows($rows);
+            $serialized_rows = self::serialize_rows($rows);
 
-            $executionMs = (int)((microtime(true) - $startTime) * 1000);
-            $logEntry['rows_returned'] = count($rows);
-            $logEntry['execution_ms']  = $executionMs;
-            self::write_log($logEntry);
+            $execution_ms = (int)((microtime(true) - $start_time) * 1000);
+            $log_entry['rows_returned'] = count($rows);
+            $log_entry['execution_ms']  = $execution_ms;
+            self::write_log($log_entry);
 
             return [
                 'success'      => true,
-                'shortname'    => $queryRecord->shortname,
+                'shortname'    => $query_record->shortname,
                 'rows_count'   => count($rows),
-                'execution_ms' => $executionMs,
-                'rows'         => $serializedRows,
+                'execution_ms' => $execution_ms,
+                'rows'         => $serialized_rows,
                 'error'        => '',
             ];
 
         } catch (\Exception $e) {
-            $logEntry['error'] = $e->getMessage();
-            self::write_log($logEntry);
+            $log_entry['error'] = $e->getMessage();
+            self::write_log($log_entry);
 
             return [
                 'success'      => false,
-                'shortname'    => $validatedParams['shortname'],
+                'shortname'    => $validated_params['shortname'],
                 'rows_count'   => 0,
                 'execution_ms' => 0,
                 'rows'         => [],
@@ -168,7 +181,7 @@ class external extends \core_external\external_api {
                 new \external_multiple_structure(
                     new \external_single_structure([
                         'key'   => new \external_value(PARAM_TEXT, get_string('ws_ret_field_key',   'local_apiquery')),
-                        'value' => new \external_value(PARAM_RAW,  get_string('ws_ret_field_value', 'local_apiquery'), VALUE_OPTIONAL, null),
+                        'value' => new \external_value(PARAM_TEXT, get_string('ws_ret_field_value', 'local_apiquery'), VALUE_OPTIONAL, null),
                     ])
                 ),
                 get_string('ws_ret_rows', 'local_apiquery')
@@ -198,7 +211,7 @@ class external extends \core_external\external_api {
 
         $result = [];
         foreach ($records as $record) {
-            $declaredParams = json_decode($record->parameters ?? '[]', true) ?: [];
+            $declared_params = json_decode($record->parameters ?? '[]', true) ?: [];
             $result[] = [
                 'shortname'   => $record->shortname,
                 'displayname' => $record->displayname,
@@ -208,7 +221,7 @@ class external extends \core_external\external_api {
                     'type'     => $p['type'],
                     'required' => (bool)($p['required'] ?? false),
                     'default'  => $p['default'] ?? '',
-                ], $declaredParams),
+                ], $declared_params),
             ];
         }
 
@@ -226,7 +239,7 @@ class external extends \core_external\external_api {
                         'name'     => new \external_value(PARAM_TEXT, get_string('ws_param_name_desc',    'local_apiquery')),
                         'type'     => new \external_value(PARAM_TEXT, get_string('ws_list_param_type',    'local_apiquery')),
                         'required' => new \external_value(PARAM_BOOL, get_string('ws_list_param_required','local_apiquery')),
-                        'default'  => new \external_value(PARAM_RAW,  get_string('param_col_default',     'local_apiquery'), VALUE_OPTIONAL, ''),
+                        'default'  => new \external_value(PARAM_TEXT, get_string('param_col_default',     'local_apiquery'), VALUE_OPTIONAL, ''),
                     ])
                 ),
             ])
@@ -248,25 +261,25 @@ class external extends \core_external\external_api {
      *   :since (3rd occurrence) → renamed to :since_dup3
      * This way the admin declares :since once and the value is repeated automatically.
      */
-    private static function build_sql_params(\stdClass $queryRecord, array $sentParams): array {
-        $declared = json_decode($queryRecord->parameters ?? '[]', true) ?: [];
+    private static function build_sql_params(\stdClass $query_record, array $sent_params): array {
+        $declared = json_decode($query_record->parameters ?? '[]', true) ?: [];
 
         // Index sent values by name.
-        $sentByName = [];
-        foreach ($sentParams as $p) {
-            $sentByName[$p['name']] = $p['value'];
+        $sent_by_name = [];
+        foreach ($sent_params as $p) {
+            $sent_by_name[$p['name']] = $p['value'];
         }
 
         // Resolve value and type for each declared parameter.
-        $resolvedValues = [];
+        $resolved_values = [];
         foreach ($declared as $decl) {
             $name     = $decl['name'];
             $type     = $decl['type'] ?? 'text';
             $required = (bool)($decl['required'] ?? false);
             $default  = $decl['default'] ?? null;
 
-            if (array_key_exists($name, $sentByName)) {
-                $value = $sentByName[$name];
+            if (array_key_exists($name, $sent_by_name)) {
+                $value = $sent_by_name[$name];
             } elseif (!$required && $default !== null) {
                 $value = $default;
             } elseif ($required) {
@@ -277,7 +290,7 @@ class external extends \core_external\external_api {
                 $value = null;
             }
 
-            $resolvedValues[$name] = match($type) {
+            $resolved_values[$name] = match($type) {
                 'int'   => (int) $value,
                 'float' => (float) $value,
                 'bool'  => (bool) $value,
@@ -285,7 +298,7 @@ class external extends \core_external\external_api {
             };
         }
 
-        return $resolvedValues;
+        return $resolved_values;
     }
 
     /**
@@ -299,37 +312,37 @@ class external extends \core_external\external_api {
      *         params: ['since' => 1738000000, 'since_dup2' => 1738000000]
      */
     private static function expand_duplicate_params(string $sql, array $params): array {
-        $occurrenceCount = [];
-        $expandedParams  = [];
+        $occurrence_count = [];
+        $expanded_params  = [];
 
         // Find all :placeholder occurrences in order of appearance.
         // preg_replace_callback processes each occurrence in document order.
-        $expandedSql = preg_replace_callback(
+        $expanded_sql = preg_replace_callback(
             '/:([a-zA-Z_][a-zA-Z0-9_]*)/',
-            function ($matches) use (&$occurrenceCount, &$expandedParams, $params) {
+            function ($matches) use (&$occurrence_count, &$expanded_params, $params) {
                 $name = $matches[1];
 
-                if (!isset($occurrenceCount[$name])) {
-                    $occurrenceCount[$name] = 1;
+                if (!isset($occurrence_count[$name])) {
+                    $occurrence_count[$name] = 1;
                 } else {
-                    $occurrenceCount[$name]++;
+                    $occurrence_count[$name]++;
                 }
 
-                $count = $occurrenceCount[$name];
+                $count = $occurrence_count[$name];
 
                 if ($count === 1) {
                     // First occurrence: keep original placeholder and value.
                     if (array_key_exists($name, $params)) {
-                        $expandedParams[$name] = $params[$name];
+                        $expanded_params[$name] = $params[$name];
                     }
                     return ':' . $name;
                 } else {
                     // Duplicate occurrence: rename placeholder and copy the value.
-                    $dupName = $name . '_dup' . $count;
+                    $dup_name = $name . '_dup' . $count;
                     if (array_key_exists($name, $params)) {
-                        $expandedParams[$dupName] = $params[$name]; // same value
+                        $expanded_params[$dup_name] = $params[$name]; // same value
                     }
-                    return ':' . $dupName;
+                    return ':' . $dup_name;
                 }
             },
             $sql
@@ -337,12 +350,12 @@ class external extends \core_external\external_api {
 
         // Add params that were not in the SQL (should not happen, but kept as a safety net).
         foreach ($params as $key => $value) {
-            if (!isset($expandedParams[$key])) {
-                $expandedParams[$key] = $value;
+            if (!isset($expanded_params[$key])) {
+                $expanded_params[$key] = $value;
             }
         }
 
-        return ['sql' => $expandedSql, 'params' => $expandedParams];
+        return ['sql' => $expanded_sql, 'params' => $expanded_params];
     }
 
     /**

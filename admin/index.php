@@ -31,25 +31,25 @@ admin_externalpage_setup('local_apiquery_queries');
 
 // Direct actions (enable/disable/delete without a form).
 $action   = optional_param('action', '', PARAM_ALPHA);
-$queryId  = optional_param('id', 0, PARAM_INT);
+$query_id  = optional_param('id', 0, PARAM_INT);
 
-if ($action && $queryId) {
+if ($action && $query_id) {
     require_sesskey();
 
     switch ($action) {
         case 'enable':
-            $DB->set_field('local_apiquery_queries', 'enabled', 1, ['id' => $queryId]);
+            $DB->set_field('local_apiquery_queries', 'enabled', 1, ['id' => $query_id]);
             redirect(new moodle_url('/local/apiquery/admin/index.php'), get_string('query_enabled', 'local_apiquery'), null, \core\output\notification::NOTIFY_SUCCESS);
             break;
 
         case 'disable':
-            $DB->set_field('local_apiquery_queries', 'enabled', 0, ['id' => $queryId]);
+            $DB->set_field('local_apiquery_queries', 'enabled', 0, ['id' => $query_id]);
             redirect(new moodle_url('/local/apiquery/admin/index.php'), get_string('query_disabled', 'local_apiquery'), null, \core\output\notification::NOTIFY_WARNING);
             break;
 
         case 'delete':
-            $DB->delete_records('local_apiquery_logs', ['query_id' => $queryId]);
-            $DB->delete_records('local_apiquery_queries', ['id' => $queryId]);
+            $DB->delete_records('local_apiquery_logs', ['query_id' => $query_id]);
+            $DB->delete_records('local_apiquery_queries', ['id' => $query_id]);
             redirect(new moodle_url('/local/apiquery/admin/index.php'), get_string('query_deleted', 'local_apiquery'), null, \core\output\notification::NOTIFY_SUCCESS);
             break;
     }
@@ -75,16 +75,16 @@ echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('manage_queries', 'local_apiquery'));
 
 // Action bar: New / Export / Import.
-$createUrl  = new moodle_url('/local/apiquery/admin/edit.php');
-$exportUrl  = new moodle_url('/local/apiquery/admin/export.php');
-$importUrl  = new moodle_url('/local/apiquery/admin/import.php');
+$create_url  = new moodle_url('/local/apiquery/admin/edit.php');
+$export_url  = new moodle_url('/local/apiquery/admin/export.php');
+$import_url  = new moodle_url('/local/apiquery/admin/import.php');
 
 echo html_writer::div(
-    html_writer::link($createUrl, '+ ' . get_string('new_query',       'local_apiquery'), ['class' => 'btn btn-primary']) .
+    html_writer::link($create_url, '+ ' . get_string('new_query',       'local_apiquery'), ['class' => 'btn btn-primary']) .
     ' ' .
-    html_writer::link($exportUrl, '↑ ' . get_string('export_all',      'local_apiquery'), ['class' => 'btn btn-outline-secondary']) .
+    html_writer::link($export_url, '↑ ' . get_string('export_all',      'local_apiquery'), ['class' => 'btn btn-outline-secondary']) .
     ' ' .
-    html_writer::link($importUrl, '↓ ' . get_string('import_queries',  'local_apiquery'), ['class' => 'btn btn-outline-secondary']),
+    html_writer::link($import_url, '↓ ' . get_string('import_queries',  'local_apiquery'), ['class' => 'btn btn-outline-secondary']),
     'd-flex gap-2 mb-4'
 );
 
@@ -107,39 +107,39 @@ if (empty($queries)) {
 
     foreach ($queries as $q) {
         $params      = json_decode($q->parameters ?? '[]', true) ?: [];
-        $paramNames  = implode(', ', array_map(fn($p) => ':' . $p['name'], $params));
-        $statusBadge = $q->enabled
+        $param_names  = implode(', ', array_map(fn($p) => ':' . $p['name'], $params));
+        $status_badge = $q->enabled
             ? html_writer::span(get_string('active', 'local_apiquery'), 'badge badge-success bg-success text-white')
             : html_writer::span(get_string('inactive', 'local_apiquery'), 'badge badge-secondary bg-secondary text-white');
 
         $sesskey = sesskey();
 
         // Row actions.
-        $editUrl    = new moodle_url('/local/apiquery/admin/edit.php', ['id' => $q->id]);
-        $testUrl    = new moodle_url('/local/apiquery/admin/test.php', ['id' => $q->id]);
-        $toggleUrl  = new moodle_url('/local/apiquery/admin/index.php', [
+        $edit_url    = new moodle_url('/local/apiquery/admin/edit.php', ['id' => $q->id]);
+        $test_url    = new moodle_url('/local/apiquery/admin/test.php', ['id' => $q->id]);
+        $toggle_url  = new moodle_url('/local/apiquery/admin/index.php', [
             'action' => $q->enabled ? 'disable' : 'enable',
             'id'     => $q->id,
             'sesskey'=> $sesskey,
         ]);
-        $deleteUrl  = new moodle_url('/local/apiquery/admin/index.php', [
+        $delete_url  = new moodle_url('/local/apiquery/admin/index.php', [
             'action' => 'delete',
             'id'     => $q->id,
             'sesskey'=> $sesskey,
         ]);
 
         $actions = implode(' ', [
-            html_writer::link($editUrl,   '✏️ ' . get_string('edit'),   ['class' => 'btn btn-sm btn-outline-primary']),
-            html_writer::link($testUrl,   '▶️ ' . get_string('test', 'local_apiquery'),   ['class' => 'btn btn-sm btn-outline-info']),
-            html_writer::link($toggleUrl, $q->enabled ? '⏸ ' . get_string('disable', 'local_apiquery') : '▶ ' . get_string('enable', 'local_apiquery'), ['class' => 'btn btn-sm btn-outline-warning']),
-            html_writer::link($deleteUrl, '🗑 ' . get_string('delete'), ['class' => 'btn btn-sm btn-outline-danger', 'onclick' => "return confirm('" . get_string('confirm_delete', 'local_apiquery') . "')"]),
+            html_writer::link($edit_url,   '✏️ ' . get_string('edit'),   ['class' => 'btn btn-sm btn-outline-primary']),
+            html_writer::link($test_url,   '▶️ ' . get_string('test', 'local_apiquery'),   ['class' => 'btn btn-sm btn-outline-info']),
+            html_writer::link($toggle_url, $q->enabled ? '⏸ ' . get_string('disable', 'local_apiquery') : '▶ ' . get_string('enable', 'local_apiquery'), ['class' => 'btn btn-sm btn-outline-warning']),
+            html_writer::link($delete_url, '🗑 ' . get_string('delete'), ['class' => 'btn btn-sm btn-outline-danger', 'onclick' => "return confirm('" . get_string('confirm_delete', 'local_apiquery') . "')"]),
         ]);
 
         $table->data[] = [
             html_writer::tag('code', $q->shortname),
             $q->displayname . html_writer::tag('small', '<br>' . ($q->description ?? ''), ['class' => 'text-muted']),
-            $paramNames ?: html_writer::span('—', 'text-muted'),
-            $statusBadge,
+            $param_names ?: html_writer::span('—', 'text-muted'),
+            $status_badge,
             number_format($q->total_executions),
             $q->last_execution ? userdate($q->last_execution) : '—',
             $q->avg_ms ? round($q->avg_ms) . ' ms' : '—',
@@ -154,10 +154,10 @@ if (empty($queries)) {
 echo $OUTPUT->box_start('generalbox mt-4');
 echo $OUTPUT->heading(get_string('api_usage', 'local_apiquery'), 4);
 
-$siteUrl = $CFG->wwwroot;
+$site_url = $CFG->wwwroot;
 echo html_writer::tag('p', get_string('api_usage_desc', 'local_apiquery'));
 echo html_writer::tag('pre',
-    "POST {$siteUrl}/webservice/rest/server.php\n\n" .
+    "POST {$site_url}/webservice/rest/server.php\n\n" .
     "wsfunction=local_apiquery_execute_query\n" .
     "wstoken=YOUR_TOKEN_HERE\n" .
     "moodlewsrestformat=json\n" .

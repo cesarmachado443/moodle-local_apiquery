@@ -64,6 +64,10 @@ $string['privacy:metadata:local_apiquery_logs:userid']      = 'The ID of the use
 $string['privacy:metadata:local_apiquery_logs:params_used'] = 'The parameters sent in the API call (may include course IDs or timestamps).';
 $string['privacy:metadata:local_apiquery_logs:timecreated'] = 'The date and time when the API call was made.';
 
+$string['privacy:metadata:local_apiquery_queries']            = 'Custom SQL queries created by administrators.';
+$string['privacy:metadata:local_apiquery_queries:createdby']  = 'The ID of the user who created this query.';
+$string['privacy:metadata:local_apiquery_queries:timecreated'] = 'The date and time when the query was created.';
+
 // ── DML warning (confirmation screen) ─────────────────────────────────────────
 $string['warning_dml']          = 'This query contains data modification operations (INSERT/UPDATE/DELETE/REPLACE). Use with caution.';
 $string['warning_dml_title']    = '⚠️ This query contains data-modifying operations in Moodle.';
@@ -102,6 +106,11 @@ $string['add_param']          = '+ Add parameter';
 $string['placeholder_shortname_ex']   = 'Ex: get_grades_since';
 $string['placeholder_displayname_ex'] = 'Ex: Grades modified since date';
 $string['placeholder_description_ex'] = 'What this query returns and when to use it...';
+$string['placeholder_sql_ex']         = 'SELECT gg.userid, gg.finalgrade, gg.timemodified, gi.itemmodule
+FROM {grade_grades} gg
+JOIN {grade_items} gi ON gi.id = gg.itemid
+WHERE gg.timemodified > :since
+AND gi.courseid IN (:courseids)';
 $string['placeholder_no_default']     = 'Empty = no default';
 $string['placeholder_param_name']     = 'param_name';
 
@@ -141,6 +150,7 @@ $string['col_date']     = 'Date';
 
 // ── Export / Import ───────────────────────────────────────────────────────────
 $string['export_queries']            = 'Export queries';
+$string['export_json_encode_error']  = 'JSON encoding error: {$a}';
 $string['export_select_title']       = 'Select queries to export';
 $string['export_select_all']         = 'Select all';
 $string['export_deselect_all']       = 'Deselect all';
@@ -160,7 +170,23 @@ $string['import_success']            = '{$a} query/queries imported successfully
 $string['import_skipped']            = '{$a} query/queries skipped (shortname already exists).';
 $string['import_overwritten']        = '{$a} query/queries overwritten.';
 $string['import_invalid_file']       = 'Invalid file. Please upload a valid JSON export from this plugin.';
+$string['import_json_decode_error']  = 'Invalid JSON file. Error: {$a}';
+$string['import_structure_error']    = 'Invalid file structure. {$a}';
+$string['import_debug_structure']    = 'is_array={$a->is_array}, has_meta={$a->has_meta}, has_queries={$a->has_queries}, plugin={$a->plugin}';
+$string['import_debug_yes']          = 'yes';
+$string['import_debug_no']           = 'no';
+$string['import_debug_missing']      = 'missing';
 $string['import_no_queries']         = 'The file contains no queries.';
+$string['import_upload_error_code']  = 'Upload error code: {$a}';
+$string['import_upload_no_file']     = 'No file uploaded';
+$string['import_upload_ini_size']    = 'File exceeds upload_max_filesize';
+$string['import_upload_form_size']   = 'File exceeds MAX_FILE_SIZE';
+$string['import_upload_tmp']         = 'Tmp: {$a}';
+$string['import_upload_tmp_empty']   = 'empty';
+$string['import_upload_tmp_present'] = 'present';
+$string['import_upload_valid']       = 'Valid upload: {$a}';
+$string['import_upload_valid_yes']   = 'yes';
+$string['import_upload_valid_no']    = 'no';
 $string['import_source_info']        = 'Source: {$a->site} &mdash; Moodle {$a->release} &mdash; Exported on {$a->date}';
 $string['import_col_status']         = 'Import status';
 $string['import_status_new']         = 'New';
@@ -171,8 +197,9 @@ $string['warning_version_major_mismatch']      = 'Major version difference detec
 $string['warning_version_major_mismatch_desc'] = 'The file was exported from Moodle {$a->exported} and this site runs Moodle {$a->current}. This is a significant version difference. SQL queries may reference tables or columns that no longer exist or have been restructured. Strongly recommended: import as disabled and test each query individually.';
 
 // ── Webservice API runtime messages (external.php) ───────────────────────────
-$string['error_query_execute']         = 'Error executing query: {$a}';
-$string['error_required_param_missing']= 'Required parameter \'{$a}\' was not sent.';
+$string['error_query_execute']           = 'Error executing query: {$a}';
+$string['error_required_param_missing']  = 'Required parameter \'{$a}\' was not sent.';
+$string['error_sql_validation_failed']   = 'SQL validation failed at execution time:';
 
 // ── Webservice parameter/return descriptions (external.php) ──────────────────
 $string['ws_shortname_desc']     = 'Shortname of the query to execute';

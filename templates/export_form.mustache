@@ -1,0 +1,115 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template local_apiquery/export_form
+
+    Export queries - selection form with table.
+
+    @copyright 2026 CESW <cesarmachado443@gmail.com>
+    @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+
+    Classes required for JS:
+    * export-qid - Individual query checkboxes (managed by export_select AMD module)
+
+    Context variables required for this template:
+    * sesskey - Session key
+    * select_all_btn - Select all button text
+    * deselect_all_btn - Deselect all button text
+    * queries - Array of query objects
+    * col_shortname - Column header
+    * col_displayname - Column header
+    * col_parameters - Column header
+    * col_status - Column header
+    * export_btn - Export button text
+
+    Example context (json):
+    {
+        "sesskey": "abc123",
+        "queries": [
+            {
+                "id": 1,
+                "shortname": "active_users",
+                "displayname": "Active Users",
+                "description": "Returns all active users",
+                "param_names": ":since, :limit",
+                "enabled": true,
+                "badge_class": "bg-success text-white",
+                "badge_text": "Active"
+            }
+        ]
+    }
+}}
+<form method="post">
+    <input type="hidden" name="sesskey" value="{{sesskey}}">
+    <input type="hidden" name="step" value="download">
+
+    <div class="mb-3 d-flex gap-2">
+        <button type="button" id="export-select-all" class="btn btn-sm btn-outline-secondary">
+            {{select_all_btn}}
+        </button>
+        <button type="button" id="export-deselect-all" class="btn btn-sm btn-outline-secondary">
+            {{deselect_all_btn}}
+        </button>
+    </div>
+
+    <table class="generaltable table table-hover">
+        <thead>
+            <tr>
+                <th>
+                    <input type="checkbox" id="export-check-all" class="form-check-input"
+                           title="{{select_all_btn}}">
+                </th>
+                <th>{{col_shortname}}</th>
+                <th>{{col_displayname}}</th>
+                <th>{{col_parameters}}</th>
+                <th>{{col_status}}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{#queries}}
+            <tr>
+                <td>
+                    <input type="checkbox" name="qids[]" value="{{id}}"
+                           class="form-check-input export-qid" checked>
+                </td>
+                <td><code>{{shortname}}</code></td>
+                <td>
+                    {{displayname}}
+                    {{#description}}
+                    <br><small class="text-muted">{{description}}</small>
+                    {{/description}}
+                </td>
+                <td>
+                    {{#param_names}}
+                    <small class="font-monospace">{{param_names}}</small>
+                    {{/param_names}}
+                    {{^param_names}}
+                    <span class="text-muted">—</span>
+                    {{/param_names}}
+                </td>
+                <td>
+                    <span class="badge {{badge_class}}">{{badge_text}}</span>
+                </td>
+            </tr>
+            {{/queries}}
+        </tbody>
+    </table>
+
+    <button type="submit" class="btn btn-primary mt-2">
+        ↑ {{export_btn}}
+    </button>
+</form>

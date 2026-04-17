@@ -29,14 +29,14 @@ require_capability('local/apiquery:manage', context_system::instance());
 
 admin_externalpage_setup('local_apiquery_queries');
 
-$queryId  = optional_param('id', 0, PARAM_INT);
-$isEdit   = $queryId > 0;
+$query_id  = optional_param('id', 0, PARAM_INT);
+$is_edit   = $query_id > 0;
 
 // Override the page URL set by admin_externalpage_setup (which defaults to the index page).
-$PAGE->set_url(new moodle_url('/local/apiquery/admin/edit.php', $isEdit ? ['id' => $queryId] : []));
+$PAGE->set_url(new moodle_url('/local/apiquery/admin/edit.php', $is_edit ? ['id' => $query_id] : []));
 
 // Load the existing record when editing.
-$existing = $isEdit ? $DB->get_record('local_apiquery_queries', ['id' => $queryId], '*', MUST_EXIST) : null;
+$existing = $is_edit ? $DB->get_record('local_apiquery_queries', ['id' => $query_id], '*', MUST_EXIST) : null;
 
 // Process submitted form.
 $errors  = [];
@@ -47,26 +47,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && confirm_sesskey()) {
     $shortname   = trim(required_param('shortname', PARAM_ALPHANUMEXT));
     $displayname = trim(required_param('displayname', PARAM_TEXT));
     $description = trim(optional_param('description', '', PARAM_TEXT));
-    $sqlquery    = trim(required_param('sqlquery', PARAM_RAW));
+    $sqlquery    = trim(required_param('sqlquery', PARAM_TEXT));
     $enabled     = optional_param('enabled', 0, PARAM_INT);
 
     // Read declared parameters from the form.
-    // clean_param_array() is the correct Moodle method for sanitising arrays of inputs.
-    // optional_param() only handles single values, not dynamic form arrays.
-    $paramNames    = clean_param_array((array)(isset($_POST['param_name'])    ? $_POST['param_name']    : []), PARAM_ALPHANUMEXT);
-    $paramTypes    = clean_param_array((array)(isset($_POST['param_type'])    ? $_POST['param_type']    : []), PARAM_ALPHA);
-    $paramRequired = (array)(isset($_POST['param_required']) ? $_POST['param_required'] : []);
-    $paramDefaults = clean_param_array((array)(isset($_POST['param_default']) ? $_POST['param_default'] : []), PARAM_RAW);
+    // optional_param_array() is the secure Moodle method for handling array inputs.
+    $param_names    = optional_param_array('param_name',    [], PARAM_ALPHANUMEXT);
+    $param_types    = optional_param_array('param_type',    [], PARAM_ALPHA);
+    $param_required = optional_param_array('param_required', [], PARAM_INT);
+    $param_defaults = optional_param_array('param_default', [], PARAM_TEXT);
 
-    $declaredParams = [];
-    foreach ($paramNames as $i => $name) {
+    $declared_params = [];
+    foreach ($param_names as $i => $name) {
         $name = trim($name);
         if (empty($name)) continue;
-        $declaredParams[] = [
+        $declared_params[] = [
             'name'     => $name,
-            'type'     => $paramTypes[$i]    ?? 'text',
-            'required' => isset($paramRequired[$i]) ? 1 : 0,
-            'default'  => $paramDefaults[$i] ?? '',
+            'type'     => $param_types[$i]    ?? 'text',
+            'required' => isset($param_required[$i]) ? 1 : 0,
+            'default'  => $param_defaults[$i] ?? '',
         ];
     }
 
@@ -78,54 +77,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && confirm_sesskey()) {
     // Validate shortname uniqueness (skip when editing the same record).
     if (!empty($shortname)) {
         $existing_check = $DB->get_record('local_apiquery_queries', ['shortname' => $shortname]);
-        if ($existing_check && (int)$existing_check->id !== (int)$queryId) {
+        if ($existing_check && (int)$existing_check->id !== (int)$query_id) {
             $errors[] = get_string('error_shortname_duplicate', 'local_apiquery', $shortname);
         }
     }
 
     // Validate SQL with the security validator.
-    $sqlWarnings = [];
+    $sql_warnings = [];
     if (!empty($sqlquery)) {
         $validation   = \local_apiquery\sql_validator::validate($sqlquery);
         $errors       = array_merge($errors, $validation['errors']);
-        $sqlWarnings  = $validation['warnings'] ?? [];
+        $sql_warnings  = $validation['warnings'] ?? [];
 
         // If there are warnings and the admin has not confirmed, block saving to force confirmation.
-        $confirmWarnings = optional_param('confirm_warnings', 0, PARAM_INT);
-        if (!empty($sqlWarnings) && !$confirmWarnings) {
+        $confirm_warnings = optional_param('confirm_warnings', 0, PARAM_INT);
+        if (!empty($sql_warnings) && !$confirm_warnings) {
             // Not a blocking error — just waiting for explicit confirmation.
             // The confirmation form is shown instead of saving.
         }
 
         // Validate consistency between declared parameters and SQL placeholders.
-        if (empty($validation['errors']) && !empty($declaredParams)) {
-            $consistencyErrors = \local_apiquery\sql_validator::validate_params_consistency($sqlquery, $declaredParams);
-            $errors = array_merge($errors, $consistencyErrors);
+        if (empty($validation['errors']) && !empty($declared_params)) {
+            $consistency_errors = \local_apiquery\sql_validator::validate_params_consistency($sqlquery, $declared_params);
+            $errors = array_merge($errors, $consistency_errors);
         }
     }
 
     // If there are warnings and they have not been confirmed, show the confirmation screen.
-    $confirmWarnings = optional_param('confirm_warnings', 0, PARAM_INT);
-    if (empty($errors) && !empty($sqlWarnings) && !$confirmWarnings) {
+    $confirm_warnings = optional_param('confirm_warnings', 0, PARAM_INT);
+    if (empty($errors) && !empty($sql_warnings) && !$confirm_warnings) {
         // Do not save yet — show warnings for the admin to confirm.
-        $needsConfirmation = true;
+        $needs_confirmation = true;
     } else {
-        $needsConfirmation = false;
+        $needs_confirmation = false;
     }
 
-    if (empty($errors) && !$needsConfirmation) {
+    if (empty($errors) && !$needs_confirmation) {
         $record = new stdClass();
         $record->shortname    = $shortname;
         $record->displayname  = $displayname;
         $record->description  = $description;
         $record->sqlquery     = $sqlquery;
-        $record->parameters   = json_encode(array_values($declaredParams));
+        $record->parameters   = json_encode(array_values($declared_params));
         $record->enabled      = $enabled;
         $record->timemodified = time();
         $record->createdby    = $USER->id;
 
-        if ($isEdit) {
-            $record->id = $queryId;
+        if ($is_edit) {
+            $record->id = $query_id;
             $DB->update_record('local_apiquery_queries', $record);
             $message = get_string('query_updated', 'local_apiquery');
         } else {
@@ -135,7 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && confirm_sesskey()) {
         }
 
         redirect(new moodle_url('/local/apiquery/admin/index.php'), $message, null, \core\output\notification::NOTIFY_SUCCESS);
-    } // end if empty($errors) && !$needsConfirmation
+    } // end if empty($errors) && !$needs_confirmation
 
     // On errors, re-populate with submitted data to avoid losing work.
     if ($existing === null) $existing = new stdClass();
@@ -144,69 +143,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && confirm_sesskey()) {
     $existing->description = $description;
     $existing->sqlquery    = $sqlquery;
     $existing->enabled     = $enabled;
-    $existing->parameters  = json_encode($declaredParams);
+    $existing->parameters  = json_encode($declared_params);
 }
 
-$needsConfirmation = $needsConfirmation ?? false;
-$sqlWarnings       = $sqlWarnings ?? [];
-$pageTitle = $isEdit ? get_string('edit_query', 'local_apiquery') : get_string('new_query', 'local_apiquery');
-$PAGE->set_title($pageTitle);
-$PAGE->set_heading($pageTitle);
-
-// Translated strings for inline JS.
-$jsHintDetected = addslashes(get_string('hint_placeholders_detected', 'local_apiquery'));
-$jsHintRepeated = addslashes(get_string('hint_placeholder_repeated',  'local_apiquery'));
-$jsHintDeclare  = addslashes(get_string('hint_declare_once',          'local_apiquery'));
+$needs_confirmation = $needs_confirmation ?? false;
+$sql_warnings       = $sql_warnings ?? [];
+$page_title = $is_edit ? get_string('edit_query', 'local_apiquery') : get_string('new_query', 'local_apiquery');
+$PAGE->set_title($page_title);
+$PAGE->set_heading($page_title);
 
 // Minimal JS for the SQL editor and dynamic parameter rows.
-$PAGE->requires->js_amd_inline("
-require(['jquery'], function(\$) {
-    // Add a parameter row dynamically.
-    \$('#add-param').on('click', function() {
-        var template = \$('#param-row-template').html();
-        var index    = \$('.param-row').length;
-        template     = template.replace(/__INDEX__/g, index);
-        \$('#params-container').append('<tr class=\"param-row\">' + template + '</tr>');
-    });
-
-    // Remove a parameter row.
-    \$(document).on('click', '.remove-param', function() {
-        \$(this).closest('tr').remove();
-    });
-
-    // Detect SQL placeholders to suggest parameter declarations.
-    \$('#id_sqlquery').on('blur', function() {
-        var sql   = \$(this).val();
-        var regex = /:([a-zA-Z_][a-zA-Z0-9_]*)/g;
-        var allMatches = [];
-        var match;
-        while ((match = regex.exec(sql)) !== null) {
-            allMatches.push(match[1]);
-        }
-
-        // Deduplicate: if :since appears twice in the SQL it is ONE parameter.
-        var unique   = [...new Set(allMatches)];
-        var repeated = allMatches.filter((v, i, a) => a.indexOf(v) !== i);
-
-        if (unique.length > 0) {
-            var hint = '{$jsHintDetected}' + unique.map(n => ':' + n).join(', ');
-            if (repeated.length > 0) {
-                hint += ' ⚠️ (' + [...new Set(repeated)].map(n => ':' + n).join(', ') + ' {$jsHintRepeated})';
-            }
-            hint += ' {$jsHintDeclare}';
-            \$('#placeholder-hint').text(hint);
-        }
-    });
-});
-");
+$PAGE->requires->js_call_amd('local_apiquery/edit_params', 'init', [[
+    'detected' => get_string('hint_placeholders_detected', 'local_apiquery'),
+    'repeated' => get_string('hint_placeholder_repeated', 'local_apiquery'),
+    'declare' => get_string('hint_declare_once', 'local_apiquery'),
+    'placeholder_param_name' => get_string('placeholder_param_name', 'local_apiquery'),
+    'placeholder_no_default' => get_string('placeholder_no_default', 'local_apiquery'),
+]]);
 
 echo $OUTPUT->header();
-echo $OUTPUT->heading($pageTitle);
+echo $OUTPUT->heading($page_title);
 
 // ── DML WARNING CONFIRMATION SCREEN ──────────────────────────────────────
 // If the SQL contains DML (DELETE, UPDATE, INSERT, REPLACE) show warnings
 // and require explicit confirmation before saving.
-if (!empty($needsConfirmation) && empty($errors)):
+if (!empty($needs_confirmation) && empty($errors)):
 
     echo $OUTPUT->notification(
         '<strong>' . get_string('warning_dml_title', 'local_apiquery') . '</strong><br>' .
@@ -214,44 +175,35 @@ if (!empty($needsConfirmation) && empty($errors)):
         'warning'
     );
 
-    echo html_writer::start_tag('ul', ['class' => 'alert alert-warning']);
-    foreach ($sqlWarnings as $w) {
-        echo html_writer::tag('li', htmlspecialchars($w));
+    // Build params array for template.
+    $current_params = json_decode($existing->parameters ?? '[]', true) ?: [];
+    $params_array = [];
+    foreach ($current_params as $i => $p) {
+        $params_array[] = [
+            'index'    => $i,
+            'name'     => htmlspecialchars($p['name'] ?? ''),
+            'type'     => htmlspecialchars($p['type'] ?? 'text'),
+            'required' => (int)($p['required'] ?? 0),
+            'default'  => htmlspecialchars($p['default'] ?? ''),
+        ];
     }
-    echo html_writer::end_tag('ul');
 
-    // Confirmation form — resubmits all data with confirm_warnings=1.
-    $formAction = new moodle_url('/local/apiquery/admin/edit.php', $isEdit ? ['id' => $queryId] : []);
-?>
-    <form method="post" action="<?= $formAction ?>">
-      <input type="hidden" name="sesskey"          value="<?= sesskey() ?>">
-      <input type="hidden" name="confirm_warnings" value="1">
-      <input type="hidden" name="shortname"        value="<?= htmlspecialchars($existing->shortname ?? '') ?>">
-      <input type="hidden" name="displayname"      value="<?= htmlspecialchars($existing->displayname ?? '') ?>">
-      <input type="hidden" name="description"      value="<?= htmlspecialchars($existing->description ?? '') ?>">
-      <input type="hidden" name="sqlquery"         value="<?= htmlspecialchars($existing->sqlquery ?? '') ?>">
-      <input type="hidden" name="enabled"          value="<?= (int)($existing->enabled ?? 1) ?>">
-      <?php
-      $currentParams = json_decode($existing->parameters ?? '[]', true) ?: [];
-      foreach ($currentParams as $i => $p):
-      ?>
-        <input type="hidden" name="param_name[<?= $i ?>]"     value="<?= htmlspecialchars($p['name'] ?? '') ?>">
-        <input type="hidden" name="param_type[<?= $i ?>]"     value="<?= htmlspecialchars($p['type'] ?? 'text') ?>">
-        <input type="hidden" name="param_required[<?= $i ?>]" value="<?= (int)($p['required'] ?? 0) ?>">
-        <input type="hidden" name="param_default[<?= $i ?>]"  value="<?= htmlspecialchars($p['default'] ?? '') ?>">
-      <?php endforeach; ?>
+    $confirmation_data = [
+        'warnings'     => array_map('htmlspecialchars', $sql_warnings),
+        'form_action'  => (new moodle_url('/local/apiquery/admin/edit.php', $is_edit ? ['id' => $query_id] : []))->out(false),
+        'sesskey'      => sesskey(),
+        'shortname'    => htmlspecialchars($existing->shortname ?? ''),
+        'displayname'  => htmlspecialchars($existing->displayname ?? ''),
+        'description'  => htmlspecialchars($existing->description ?? ''),
+        'sqlquery'     => htmlspecialchars($existing->sqlquery ?? ''),
+        'enabled'      => (int)($existing->enabled ?? 1),
+        'params'       => $params_array,
+        'confirm_btn'  => get_string('confirm_dml', 'local_apiquery'),
+        'back_btn'     => get_string('back_to_edit', 'local_apiquery'),
+        'back_url'     => (new moodle_url('/local/apiquery/admin/edit.php', $is_edit ? ['id' => $query_id] : []))->out(false),
+    ];
 
-      <div class="d-flex gap-2 mt-3">
-        <button type="submit" class="btn btn-warning">
-          ⚠️ <?= get_string('confirm_dml', 'local_apiquery') ?>
-        </button>
-        <a href="<?= new moodle_url('/local/apiquery/admin/edit.php', $isEdit ? ['id' => $queryId] : []) ?>"
-           class="btn btn-outline-secondary">
-          <?= get_string('back_to_edit', 'local_apiquery') ?>
-        </a>
-      </div>
-    </form>
-<?php
+    echo $OUTPUT->render_from_template('local_apiquery/edit_dml_confirmation', $confirmation_data);
     echo $OUTPUT->footer();
     exit;
 endif;
@@ -262,145 +214,66 @@ foreach ($errors as $error) {
     echo $OUTPUT->notification($error, 'error');
 }
 
-// Current data for pre-populating the form.
-$currentParams = json_decode($existing->parameters ?? '[]', true) ?: [];
+// Build params array for template.
+$current_params = json_decode($existing->parameters ?? '[]', true) ?: [];
+$params_data = [];
+foreach ($current_params as $i => $param) {
+    $type = $param['type'] ?? 'text';
+    $params_data[] = [
+        'index'            => $i,
+        'name'             => htmlspecialchars($param['name']),
+        'type'             => htmlspecialchars($type),
+        'is_int'           => $type === 'int',
+        'is_text'          => $type === 'text',
+        'is_float'         => $type === 'float',
+        'is_bool'          => $type === 'bool',
+        'required'         => ($param['required'] ?? 0) ? '1' : '0',
+        'required_checked' => (bool)($param['required'] ?? 0),
+        'default'          => htmlspecialchars($param['default'] ?? ''),
+    ];
+}
 
-$sesskey = sesskey();
-$formAction = new moodle_url('/local/apiquery/admin/edit.php', $isEdit ? ['id' => $queryId] : []);
+$form_data = [
+    'form_action'           => (new moodle_url('/local/apiquery/admin/edit.php', $is_edit ? ['id' => $query_id] : []))->out(false),
+    'sesskey'               => sesskey(),
+    'section_identification'=> get_string('section_identification', 'local_apiquery'),
+    'section_sql'           => get_string('section_sql', 'local_apiquery'),
+    'section_params'        => get_string('section_params', 'local_apiquery'),
+    'section_status'        => get_string('section_status', 'local_apiquery'),
+    'label_shortname'       => get_string('shortname', 'local_apiquery'),
+    'label_displayname'     => get_string('displayname', 'local_apiquery'),
+    'label_description'     => get_string('description', 'local_apiquery'),
+    'label_sqlquery'        => 'SQL',
+    'label_enabled'         => get_string('field_enabled_label', 'local_apiquery'),
+    'shortname'             => htmlspecialchars($existing->shortname ?? ''),
+    'displayname'           => htmlspecialchars($existing->displayname ?? ''),
+    'description'           => htmlspecialchars($existing->description ?? ''),
+    'sqlquery'              => htmlspecialchars($existing->sqlquery ?? ''),
+    'enabled'               => (bool)($existing->enabled ?? 1),
+    'params'                => $params_data,
+    'col_name'              => get_string('param_col_name', 'local_apiquery'),
+    'col_type'              => get_string('param_col_type', 'local_apiquery'),
+    'col_required'          => get_string('param_col_required', 'local_apiquery'),
+    'col_default'           => get_string('param_col_default', 'local_apiquery'),
+    'col_actions'           => '',
+    'add_param_btn'         => get_string('add_param', 'local_apiquery'),
+    'save_btn'              => $is_edit ? '💾 ' . get_string('savechanges') : '✅ ' . get_string('create', 'local_apiquery'),
+    'cancel_text'           => get_string('cancel'),
+    'cancel_url'            => (new moodle_url('/local/apiquery/admin/index.php'))->out(false),
+    'help_shortname'        => get_string('field_shortname_hint', 'local_apiquery'),
+    'apicall_shortname'     => get_string('field_shortname_apicall', 'local_apiquery'),
+    'help_sqlquery'         => get_string('sql_security_desc', 'local_apiquery'),
+    'sql_security_title'    => get_string('sql_security_title', 'local_apiquery'),
+    'parameters_intro'      => get_string('parameters', 'local_apiquery'),
+    'placeholder_shortname' => get_string('placeholder_shortname_ex', 'local_apiquery'),
+    'placeholder_displayname' => get_string('placeholder_displayname_ex', 'local_apiquery'),
+    'placeholder_description' => get_string('placeholder_description_ex', 'local_apiquery'),
+    'placeholder_sql'       => get_string('placeholder_sql_ex', 'local_apiquery'),
+    'placeholder_param_name' => get_string('placeholder_param_name', 'local_apiquery'),
+    'placeholder_no_default' => get_string('placeholder_no_default', 'local_apiquery'),
+    'placeholder_hint_id'   => 'placeholder-hint',
+];
 
-?>
+echo $OUTPUT->render_from_template('local_apiquery/edit_form', $form_data);
 
-<form method="post" action="<?= $formAction ?>">
-<input type="hidden" name="sesskey" value="<?= $sesskey ?>">
-
-<div class="mform">
-
-  <!-- SECTION: Identification -->
-  <fieldset class="card mb-4">
-    <div class="card-header fw-bold"><?= get_string('section_identification', 'local_apiquery') ?></div>
-    <div class="card-body">
-
-      <div class="mb-3">
-        <label for="shortname" class="form-label fw-semibold">
-          <?= get_string('shortname', 'local_apiquery') ?> <span class="text-danger">*</span>
-          <small class="text-muted"><?= get_string('field_shortname_hint', 'local_apiquery') ?></small>
-        </label>
-        <input type="text" id="shortname" name="shortname" class="form-control font-monospace"
-               value="<?= htmlspecialchars($existing->shortname ?? '') ?>"
-               placeholder="<?= get_string('placeholder_shortname_ex', 'local_apiquery') ?>" pattern="[a-zA-Z0-9_]+" required>
-        <small class="form-text text-muted"><?= get_string('field_shortname_apicall', 'local_apiquery') ?></small>
-      </div>
-
-      <div class="mb-3">
-        <label for="displayname" class="form-label fw-semibold"><?= get_string('displayname', 'local_apiquery') ?> <span class="text-danger">*</span></label>
-        <input type="text" id="displayname" name="displayname" class="form-control"
-               value="<?= htmlspecialchars($existing->displayname ?? '') ?>"
-               placeholder="<?= get_string('placeholder_displayname_ex', 'local_apiquery') ?>" required>
-      </div>
-
-      <div class="mb-3">
-        <label for="description" class="form-label fw-semibold"><?= get_string('description', 'local_apiquery') ?></label>
-        <textarea id="description" name="description" class="form-control" rows="2"
-                  placeholder="<?= get_string('placeholder_description_ex', 'local_apiquery') ?>"><?= htmlspecialchars($existing->description ?? '') ?></textarea>
-      </div>
-
-      <div class="form-check">
-        <input type="checkbox" id="enabled" name="enabled" value="1" class="form-check-input"
-               <?= ($existing->enabled ?? 1) ? 'checked' : '' ?>>
-        <label for="enabled" class="form-check-label"><?= get_string('field_enabled_label', 'local_apiquery') ?></label>
-      </div>
-    </div>
-  </fieldset>
-
-  <!-- SECTION: SQL Query -->
-  <fieldset class="card mb-4">
-    <div class="card-header fw-bold"><?= get_string('section_sql', 'local_apiquery') ?></div>
-    <div class="card-body">
-      <div class="alert alert-warning py-2">
-        <strong><?= get_string('sql_security_title', 'local_apiquery') ?></strong>
-        <?= get_string('sql_security_desc', 'local_apiquery') ?>
-      </div>
-
-      <label for="id_sqlquery" class="form-label fw-semibold">SQL <span class="text-danger">*</span></label>
-      <textarea id="id_sqlquery" name="sqlquery" class="form-control font-monospace" rows="12"
-                placeholder="SELECT gg.userid, gg.finalgrade, gg.timemodified, gi.itemmodule&#10;FROM {grade_grades} gg&#10;JOIN {grade_items} gi ON gi.id = gg.itemid&#10;WHERE gg.timemodified > :since&#10;AND gi.courseid IN (:courseids)"><?= htmlspecialchars($existing->sqlquery ?? '') ?></textarea>
-      <div id="placeholder-hint" class="form-text text-info mt-1"></div>
-    </div>
-  </fieldset>
-
-  <!-- SECTION: Parameters -->
-  <fieldset class="card mb-4">
-    <div class="card-header fw-bold"><?= get_string('section_params', 'local_apiquery') ?></div>
-    <div class="card-body">
-      <p class="text-muted"><?= get_string('parameters', 'local_apiquery') ?>: <code>:placeholders</code></p>
-
-      <table class="table table-bordered" id="params-table">
-        <thead class="table-light">
-          <tr>
-            <th><?= get_string('param_col_name',     'local_apiquery') ?></th>
-            <th><?= get_string('param_col_type',     'local_apiquery') ?></th>
-            <th><?= get_string('param_col_required', 'local_apiquery') ?></th>
-            <th><?= get_string('param_col_default',  'local_apiquery') ?></th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="params-container">
-          <?php foreach ($currentParams as $i => $param): ?>
-          <tr class="param-row">
-            <td><input type="text" name="param_name[<?= $i ?>]" class="form-control form-control-sm font-monospace"
-                       value="<?= htmlspecialchars($param['name']) ?>" placeholder="since"></td>
-            <td>
-              <select name="param_type[<?= $i ?>]" class="form-select form-select-sm">
-                <option value="int"   <?= ($param['type'] ?? '') === 'int'   ? 'selected' : '' ?>>int (integer)</option>
-                <option value="text"  <?= ($param['type'] ?? '') === 'text'  ? 'selected' : '' ?>>text (string)</option>
-                <option value="float" <?= ($param['type'] ?? '') === 'float' ? 'selected' : '' ?>>float (decimal number)</option>
-                <option value="bool"  <?= ($param['type'] ?? '') === 'bool'  ? 'selected' : '' ?>>bool (boolean)</option>
-              </select>
-            </td>
-            <td class="text-center">
-              <input type="checkbox" name="param_required[<?= $i ?>]" value="1"
-                     <?= ($param['required'] ?? 0) ? 'checked' : '' ?>>
-            </td>
-            <td><input type="text" name="param_default[<?= $i ?>]" class="form-control form-control-sm"
-                       value="<?= htmlspecialchars($param['default'] ?? '') ?>" placeholder="<?= get_string('placeholder_no_default', 'local_apiquery') ?>"></td>
-            <td><button type="button" class="btn btn-sm btn-outline-danger remove-param">✕</button></td>
-          </tr>
-          <?php endforeach; ?>
-        </tbody>
-      </table>
-
-      <!-- Hidden row template for JS -->
-      <script type="text/template" id="param-row-template">
-        <td><input type="text" name="param_name[__INDEX__]" class="form-control form-control-sm font-monospace" placeholder="<?= get_string('placeholder_param_name', 'local_apiquery') ?>"></td>
-        <td>
-          <select name="param_type[__INDEX__]" class="form-select form-select-sm">
-            <option value="int">int (integer)</option>
-            <option value="text">text (string)</option>
-            <option value="float">float (decimal number)</option>
-            <option value="bool">bool (boolean)</option>
-          </select>
-        </td>
-        <td class="text-center"><input type="checkbox" name="param_required[__INDEX__]" value="1"></td>
-        <td><input type="text" name="param_default[__INDEX__]" class="form-control form-control-sm" placeholder="<?= get_string('placeholder_no_default', 'local_apiquery') ?>"></td>
-        <td><button type="button" class="btn btn-sm btn-outline-danger remove-param">✕</button></td>
-      </script>
-
-      <button type="button" id="add-param" class="btn btn-outline-secondary btn-sm"><?= get_string('add_param', 'local_apiquery') ?></button>
-    </div>
-  </fieldset>
-
-  <!-- BUTTONS -->
-  <div class="d-flex gap-2">
-    <button type="submit" class="btn btn-primary">
-      <?= $isEdit ? '💾 ' . get_string('savechanges') : '✅ ' . get_string('create', 'local_apiquery') ?>
-    </button>
-    <a href="<?= new moodle_url('/local/apiquery/admin/index.php') ?>" class="btn btn-outline-secondary">
-      <?= get_string('cancel') ?>
-    </a>
-  </div>
-
-</div><!-- .mform -->
-</form>
-
-<?php
 echo $OUTPUT->footer();

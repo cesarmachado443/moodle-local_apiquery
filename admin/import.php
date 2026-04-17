@@ -37,12 +37,12 @@ $PAGE->set_url(new moodle_url('/local/apiquery/admin/import.php'));
 
 $step = optional_param('step', 'upload', PARAM_ALPHA);
 
-$pageTitle = get_string('import_queries', 'local_apiquery');
-$PAGE->set_title($pageTitle);
-$PAGE->set_heading($pageTitle);
+$page_title = get_string('import_queries', 'local_apiquery');
+$PAGE->set_title($page_title);
+$PAGE->set_heading($page_title);
 
 echo $OUTPUT->header();
-echo $OUTPUT->heading($pageTitle);
+echo $OUTPUT->heading($page_title);
 
 echo html_writer::link(
     new moodle_url('/local/apiquery/admin/index.php'),
@@ -52,28 +52,13 @@ echo html_writer::link(
 
 // ─── STEP 1: Upload form ──────────────────────────────────────────────────────
 if ($step === 'upload') {
-    ?>
-    <div class="card" style="max-width:560px">
-      <div class="card-body">
-        <form method="post" enctype="multipart/form-data">
-          <input type="hidden" name="sesskey" value="<?= sesskey() ?>">
-          <input type="hidden" name="step"    value="preview">
+    $template_data = [
+        'sesskey' => sesskey(),
+        'import_file_label' => get_string('import_file_label', 'local_apiquery'),
+        'import_queries_btn' => get_string('import_queries', 'local_apiquery'),
+    ];
 
-          <div class="mb-3">
-            <label for="importfile" class="form-label fw-semibold">
-              <?= get_string('import_file_label', 'local_apiquery') ?>
-            </label>
-            <input type="file" id="importfile" name="importfile"
-                   class="form-control" accept=".json" required>
-          </div>
-
-          <button type="submit" class="btn btn-primary">
-            <?= get_string('import_queries', 'local_apiquery') ?>
-          </button>
-        </form>
-      </div>
-    </div>
-    <?php
+    echo $OUTPUT->render_from_template('local_apiquery/import_upload_form', $template_data);
     echo $OUTPUT->footer();
     exit;
 }
@@ -84,15 +69,61 @@ confirm_sesskey();
 // ─── STEP 2: Preview (parse file, show conflicts + version warnings) ──────────
 if ($step === 'preview') {
 
-    // Validate upload.
-    if (empty($_FILES['importfile']['tmp_name']) || $_FILES['importfile']['error'] !== UPLOAD_ERR_OK) {
+    // Validate file upload.
+    // Note: Moodle's File API is designed for permanent storage in file areas.
+    // For temporary JSON imports that are immediately processed and discarded,
+    // we validate the upload explicitly with is_uploaded_file() for security.
+    $upload_error = $_FILES['importfile']['error'] ?? UPLOAD_ERR_NO_FILE;
+    $upload_tmp   = $_FILES['importfile']['tmp_name'] ?? '';
+
+    // Verify upload succeeded and is a legitimate PHP upload (prevents path traversal).
+    if ($upload_error !== UPLOAD_ERR_OK || empty($upload_tmp) || !is_uploaded_file($upload_tmp)) {
+        // Build detailed error message for debugging.
+        $error_details = get_string('import_upload_error_code', 'local_apiquery', $upload_error);
+        if ($upload_error === UPLOAD_ERR_NO_FILE) {
+            $error_details .= ' (' . get_string('import_upload_no_file', 'local_apiquery') . ')';
+        } else if ($upload_error === UPLOAD_ERR_INI_SIZE) {
+            $error_details .= ' (' . get_string('import_upload_ini_size', 'local_apiquery') . ')';
+        } else if ($upload_error === UPLOAD_ERR_FORM_SIZE) {
+            $error_details .= ' (' . get_string('import_upload_form_size', 'local_apiquery') . ')';
+        }
+        $tmp_status = empty($upload_tmp)
+            ? get_string('import_upload_tmp_empty', 'local_apiquery')
+            : get_string('import_upload_tmp_present', 'local_apiquery');
+        $error_details .= '. ' . get_string('import_upload_tmp', 'local_apiquery', $tmp_status);
+
+        $valid_status = is_uploaded_file($upload_tmp)
+            ? get_string('import_upload_valid_yes', 'local_apiquery')
+            : get_string('import_upload_valid_no', 'local_apiquery');
+        $error_details .= '. ' . get_string('import_upload_valid', 'local_apiquery', $valid_status);
+
+        echo $OUTPUT->notification(
+            get_string('import_invalid_file', 'local_apiquery') . ' (' . $error_details . ')',
+            'error'
+        );
+        echo $OUTPUT->footer();
+        exit;
+    }
+
+    // Read and validate JSON content.
+    $raw = file_get_contents($upload_tmp);
+    if ($raw === false) {
         echo $OUTPUT->notification(get_string('import_invalid_file', 'local_apiquery'), 'error');
         echo $OUTPUT->footer();
         exit;
     }
 
-    $raw  = file_get_contents($_FILES['importfile']['tmp_name']);
     $data = json_decode($raw, true);
+
+    // Check for JSON decode errors.
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        echo $OUTPUT->notification(
+            get_string('import_json_decode_error', 'local_apiquery', json_last_error_msg()),
+            'error'
+        );
+        echo $OUTPUT->footer();
+        exit;
+    }
 
     // Basic structure validation.
     if (
@@ -101,7 +132,25 @@ if ($step === 'preview') {
         || ($data['meta']['plugin'] ?? '') !== 'local_apiquery'
         || !is_array($data['queries'])
     ) {
-        echo $OUTPUT->notification(get_string('import_invalid_file', 'local_apiquery'), 'error');
+        // Build debug info object with translatable values.
+        $debug = new stdClass();
+        $debug->is_array = is_array($data)
+            ? get_string('import_debug_yes', 'local_apiquery')
+            : get_string('import_debug_no', 'local_apiquery');
+        $debug->has_meta = isset($data['meta'])
+            ? get_string('import_debug_yes', 'local_apiquery')
+            : get_string('import_debug_no', 'local_apiquery');
+        $debug->has_queries = isset($data['queries'])
+            ? get_string('import_debug_yes', 'local_apiquery')
+            : get_string('import_debug_no', 'local_apiquery');
+        $debug->plugin = $data['meta']['plugin'] ?? get_string('import_debug_missing', 'local_apiquery');
+
+        $debug_string = get_string('import_debug_structure', 'local_apiquery', $debug);
+
+        echo $OUTPUT->notification(
+            get_string('import_structure_error', 'local_apiquery', $debug_string),
+            'error'
+        );
         echo $OUTPUT->footer();
         exit;
     }
@@ -115,29 +164,29 @@ if ($step === 'preview') {
     $meta = $data['meta'];
 
     // ── Version comparison ────────────────────────────────────────────────────
-    $exportedBranch = (string) ($meta['moodle_branch'] ?? '');
-    $currentBranch  = (string) $CFG->branch;
-    $exportedRelease = trim($meta['moodle_release'] ?? $exportedBranch);
-    $currentRelease  = trim(explode('(', $CFG->release)[0]);
+    $exported_branch = (string) ($meta['moodle_branch'] ?? '');
+    $current_branch  = (string) $CFG->branch;
+    $exported_release = trim($meta['moodle_release'] ?? $exported_branch);
+    $current_release  = trim(explode('(', $CFG->release)[0]);
 
-    $versionWarningLevel = 0; // 0 = none, 1 = minor, 2 = major
-    if ($exportedBranch !== '' && $exportedBranch !== $currentBranch) {
+    $version_warning_level = 0; // 0 = none, 1 = minor, 2 = major
+    if ($exported_branch !== '' && $exported_branch !== $current_branch) {
         // Compare major version: first digit of branch (4xx vs 5xx).
-        $exportedMajor = (int) floor((int) $exportedBranch / 100);
-        $currentMajor  = (int) floor((int) $currentBranch  / 100);
-        $versionWarningLevel = ($exportedMajor !== $currentMajor) ? 2 : 1;
+        $exported_major = (int) floor((int) $exported_branch / 100);
+        $current_major  = (int) floor((int) $current_branch  / 100);
+        $version_warning_level = ($exported_major !== $current_major) ? 2 : 1;
     }
 
     // Show version warnings.
-    if ($versionWarningLevel === 2) {
-        $a = (object)['exported' => $exportedRelease, 'current' => $currentRelease];
+    if ($version_warning_level === 2) {
+        $a = (object)['exported' => $exported_release, 'current' => $current_release];
         echo $OUTPUT->notification(
             '<strong>' . get_string('warning_version_major_mismatch', 'local_apiquery') . '</strong><br>' .
             get_string('warning_version_major_mismatch_desc', 'local_apiquery', $a),
             'error'
         );
-    } elseif ($versionWarningLevel === 1) {
-        $a = (object)['exported' => $exportedRelease, 'current' => $currentRelease];
+    } elseif ($version_warning_level === 1) {
+        $a = (object)['exported' => $exported_release, 'current' => $current_release];
         echo $OUTPUT->notification(
             '<strong>' . get_string('warning_version_mismatch', 'local_apiquery') . '</strong><br>' .
             get_string('warning_version_mismatch_desc', 'local_apiquery', $a),
@@ -146,108 +195,63 @@ if ($step === 'preview') {
     }
 
     // ── Source info card ─────────────────────────────────────────────────────
-    $sourceA = (object)[
+    $source_a = (object)[
         'site'    => htmlspecialchars($meta['site_url'] ?? '—'),
-        'release' => htmlspecialchars($exportedRelease),
+        'release' => htmlspecialchars($exported_release),
         'date'    => htmlspecialchars($meta['exported_at'] ?? '—'),
     ];
     echo html_writer::div(
-        html_writer::tag('small', get_string('import_source_info', 'local_apiquery', $sourceA), ['class' => 'text-muted']),
+        html_writer::tag('small', get_string('import_source_info', 'local_apiquery', $source_a), ['class' => 'text-muted']),
         'alert alert-light border mb-3 py-2'
     );
 
     // ── Conflict detection ────────────────────────────────────────────────────
-    $existingShortnames = $DB->get_fieldset_select(
+    $existing_shortnames = $DB->get_fieldset_select(
         'local_apiquery_queries', 'shortname', '1=1'
     );
-    $existingSet = array_flip($existingShortnames);
+    $existing_set = array_flip($existing_shortnames);
 
     // ── JS select all / deselect all ─────────────────────────────────────────
-    $PAGE->requires->js_amd_inline("
-require(['jquery'], function(\$) {
-    \$('#import-check-all').on('change', function() {
-        \$('.import-qcheck').prop('checked', this.checked);
-    });
-});
-");
+    $PAGE->requires->js_call_amd('local_apiquery/import_select', 'init');
 
-    // ── Preview table with checkboxes ─────────────────────────────────────────
-    $table             = new html_table();
-    $table->head       = [
-        html_writer::tag('input', '', [
-            'type'    => 'checkbox',
-            'id'      => 'import-check-all',
-            'class'   => 'form-check-input',
-            'checked' => true,
-            'title'   => get_string('export_select_all', 'local_apiquery'),
-        ]),
-        get_string('shortname',         'local_apiquery'),
-        get_string('displayname',       'local_apiquery'),
-        get_string('import_col_status', 'local_apiquery'),
-    ];
-    $table->attributes = ['class' => 'generaltable table table-sm table-hover'];
-
+    // ── Build queries array for template ──────────────────────────────────────
+    $queries = [];
     foreach ($data['queries'] as $q) {
-        $shortname = htmlspecialchars($q['shortname'] ?? '');
-        $exists    = isset($existingSet[$q['shortname'] ?? '']);
-        $badge     = $exists
-            ? html_writer::span(get_string('import_status_exists', 'local_apiquery'), 'badge bg-warning text-dark')
-            : html_writer::span(get_string('import_status_new',    'local_apiquery'), 'badge bg-success text-white');
+        $shortname = $q['shortname'] ?? '';
+        $exists    = isset($existing_set[$shortname]);
 
-        $table->data[] = [
-            html_writer::tag('input', '', [
-                'type'    => 'checkbox',
-                'name'    => 'selected_shortnames[]',
-                'value'   => $shortname,
-                'class'   => 'form-check-input import-qcheck',
-                'checked' => true,
-            ]),
-            html_writer::tag('code', $shortname),
-            htmlspecialchars($q['displayname'] ?? ''),
-            $badge,
+        $queries[] = [
+            'shortname'   => htmlspecialchars($shortname),
+            'displayname' => htmlspecialchars($q['displayname'] ?? ''),
+            'exists'      => $exists,
+            'badge_class' => $exists ? 'bg-warning text-dark' : 'bg-success text-white',
+            'badge_text'  => $exists
+                ? get_string('import_status_exists', 'local_apiquery')
+                : get_string('import_status_new', 'local_apiquery'),
         ];
     }
 
-    echo html_writer::tag('h5', get_string('import_preview_title', 'local_apiquery'), ['class' => 'mb-3']);
-    echo html_writer::table($table);
+    // Store JSON in session cache to avoid corruption via POST param filtering.
+    $cache = cache::make('local_apiquery', 'import_data');
+    $cache->set('json_raw', $raw);
 
-    // ── Confirm form ──────────────────────────────────────────────────────────
-    ?>
-    <form method="post">
-      <input type="hidden" name="sesskey"   value="<?= sesskey() ?>">
-      <input type="hidden" name="step"      value="confirm">
-      <input type="hidden" name="jsondata"  value="<?= htmlspecialchars($raw, ENT_QUOTES) ?>">
-      <!-- selected_shortnames[] checkboxes are rendered inside the table above -->
+    $template_data = [
+        'preview_title'       => get_string('import_preview_title', 'local_apiquery'),
+        'queries'             => $queries,
+        'sesskey'             => sesskey(),
+        'conflict_mode_label' => get_string('import_conflict_mode', 'local_apiquery'),
+        'option_skip_label'   => get_string('import_option_skip', 'local_apiquery'),
+        'option_overwrite_label' => get_string('import_option_overwrite', 'local_apiquery'),
+        'confirm_btn'         => get_string('import_confirm_btn', 'local_apiquery'),
+        'cancel_text'         => get_string('cancel'),
+        'cancel_url'          => (new moodle_url('/local/apiquery/admin/index.php'))->out(false),
+        'col_shortname'       => get_string('shortname', 'local_apiquery'),
+        'col_displayname'     => get_string('displayname', 'local_apiquery'),
+        'col_status'          => get_string('import_col_status', 'local_apiquery'),
+        'select_all_label'    => get_string('export_select_all', 'local_apiquery'),
+    ];
 
-      <div class="card mb-4" style="max-width:440px">
-        <div class="card-body">
-          <p class="fw-semibold mb-2"><?= get_string('import_conflict_mode', 'local_apiquery') ?></p>
-          <div class="form-check">
-            <input class="form-check-input" type="radio" name="conflict" id="conflict_skip" value="skip" checked>
-            <label class="form-check-label" for="conflict_skip">
-              <?= get_string('import_option_skip', 'local_apiquery') ?>
-            </label>
-          </div>
-          <div class="form-check mt-1">
-            <input class="form-check-input" type="radio" name="conflict" id="conflict_overwrite" value="overwrite">
-            <label class="form-check-label" for="conflict_overwrite">
-              <?= get_string('import_option_overwrite', 'local_apiquery') ?>
-            </label>
-          </div>
-        </div>
-      </div>
-
-      <div class="d-flex gap-2">
-        <button type="submit" class="btn btn-primary">
-          <?= get_string('import_confirm_btn', 'local_apiquery') ?>
-        </button>
-        <a href="<?= new moodle_url('/local/apiquery/admin/index.php') ?>"
-           class="btn btn-outline-secondary">
-          <?= get_string('cancel') ?>
-        </a>
-      </div>
-    </form>
-    <?php
+    echo $OUTPUT->render_from_template('local_apiquery/import_preview', $template_data);
     echo $OUTPUT->footer();
     exit;
 }
@@ -255,7 +259,21 @@ require(['jquery'], function(\$) {
 // ─── STEP 3: Execute import ───────────────────────────────────────────────────
 if ($step === 'confirm') {
 
-    $raw      = required_param('jsondata', PARAM_RAW);
+    // Retrieve JSON from session cache (stored in preview step).
+    $cache = cache::make('local_apiquery', 'import_data');
+    $raw = $cache->get('json_raw');
+    $cache->delete('json_raw'); // Clean up cache.
+
+    // If cache is empty/expired, redirect back to upload form.
+    if ($raw === false || empty($raw)) {
+        redirect(
+            new moodle_url('/local/apiquery/admin/import.php'),
+            get_string('import_invalid_file', 'local_apiquery'),
+            null,
+            \core\output\notification::NOTIFY_ERROR
+        );
+    }
+
     $conflict = optional_param('conflict', 'skip', PARAM_ALPHA);
     $data     = json_decode($raw, true);
 
@@ -269,26 +287,31 @@ if ($step === 'confirm') {
     }
 
     // Only import the shortnames the user checked in the preview step.
-    $selectedRaw = clean_param_array(
+    $selected_raw = clean_param_array(
         (array) optional_param_array('selected_shortnames', [], PARAM_ALPHANUMEXT),
         PARAM_ALPHANUMEXT
     );
-    $selectedSet = array_flip($selectedRaw);
+    $selected_set = array_flip($selected_raw);
 
     // Filter queries to only those selected (if none sent, import all — safety fallback).
-    if (!empty($selectedSet)) {
+    if (!empty($selected_set)) {
         $data['queries'] = array_filter(
             $data['queries'],
-            fn($q) => isset($selectedSet[$q['shortname'] ?? ''])
+            fn($q) => isset($selected_set[$q['shortname'] ?? ''])
         );
     }
 
-    $existingShortnames = $DB->get_fieldset_select('local_apiquery_queries', 'shortname', '1=1');
-    $existingMap        = array_flip($existingShortnames);
+    // Preload all existing queries to avoid N+1 query problem.
+    // Index by shortname for O(1) lookup in the import loop below.
+    $existing_queries = $DB->get_records('local_apiquery_queries', null, '', 'id, shortname, timecreated');
+    $existing_map = [];
+    foreach ($existing_queries as $existing_query) {
+        $existing_map[$existing_query->shortname] = $existing_query;
+    }
 
-    $countImported   = 0;
-    $countSkipped    = 0;
-    $countOverwritten = 0;
+    $count_imported   = 0;
+    $count_skipped    = 0;
+    $count_overwritten = 0;
     $now = time();
 
     foreach ($data['queries'] as $q) {
@@ -307,37 +330,38 @@ if ($step === 'confirm') {
         $record->timemodified = $now;
         $record->createdby    = $USER->id;
 
-        if (isset($existingMap[$shortname])) {
+        if (isset($existing_map[$shortname])) {
             if ($conflict === 'overwrite') {
-                $existing = $DB->get_record('local_apiquery_queries', ['shortname' => $shortname]);
+                // Use preloaded record instead of querying DB again (performance).
+                $existing = $existing_map[$shortname];
                 $record->id          = $existing->id;
                 $record->timecreated = $existing->timecreated;
                 $DB->update_record('local_apiquery_queries', $record);
-                $countOverwritten++;
+                $count_overwritten++;
             } else {
-                $countSkipped++;
+                $count_skipped++;
             }
         } else {
             $record->timecreated = $now;
             $DB->insert_record('local_apiquery_queries', $record);
-            $countImported++;
+            $count_imported++;
         }
     }
 
     // Build summary message.
     $parts = [];
-    if ($countImported > 0) {
-        $parts[] = get_string('import_success',     'local_apiquery', $countImported);
+    if ($count_imported > 0) {
+        $parts[] = get_string('import_success',     'local_apiquery', $count_imported);
     }
-    if ($countOverwritten > 0) {
-        $parts[] = get_string('import_overwritten', 'local_apiquery', $countOverwritten);
+    if ($count_overwritten > 0) {
+        $parts[] = get_string('import_overwritten', 'local_apiquery', $count_overwritten);
     }
-    if ($countSkipped > 0) {
-        $parts[] = get_string('import_skipped',     'local_apiquery', $countSkipped);
+    if ($count_skipped > 0) {
+        $parts[] = get_string('import_skipped',     'local_apiquery', $count_skipped);
     }
 
     $message = implode(' ', $parts);
-    $type    = ($countImported + $countOverwritten > 0)
+    $type    = ($count_imported + $count_overwritten > 0)
         ? \core\output\notification::NOTIFY_SUCCESS
         : \core\output\notification::NOTIFY_WARNING;
 

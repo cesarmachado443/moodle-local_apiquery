@@ -33,8 +33,9 @@ use core_privacy\local\request\approved_userlist;
 /**
  * Privacy provider for local_apiquery.
  *
- * This plugin stores query execution logs that include the userid
- * of the user whose webservice token was used to make the API call.
+ * This plugin stores:
+ * - Query execution logs that include the userid of the user whose webservice token was used.
+ * - Custom queries that include the createdby field identifying the user who created them.
  */
 class provider implements
     \core_privacy\local\metadata\provider,
@@ -55,21 +56,41 @@ class provider implements
             'privacy:metadata:local_apiquery_logs'
         );
 
+        $collection->add_database_table(
+            'local_apiquery_queries',
+            [
+                'createdby'    => 'privacy:metadata:local_apiquery_queries:createdby',
+                'timecreated'  => 'privacy:metadata:local_apiquery_queries:timecreated',
+            ],
+            'privacy:metadata:local_apiquery_queries'
+        );
+
         return $collection;
     }
 
     /**
      * Returns the contexts that contain data for the given user.
-     * Only includes the system context if the user has real log entries.
+     * Includes the system context if the user has log entries or created queries.
      */
     public static function get_contexts_for_userid(int $userid): contextlist {
         $contextlist = new contextlist();
+
+        // Add context if user has execution logs.
         $sql = "SELECT ctx.id
                   FROM {context} ctx
                   JOIN {local_apiquery_logs} l ON l.userid = :userid
                  WHERE ctx.contextlevel = :contextlevel";
         $params = ['userid' => $userid, 'contextlevel' => CONTEXT_SYSTEM];
         $contextlist->add_from_sql($sql, $params);
+
+        // Add context if user created queries.
+        $sql = "SELECT ctx.id
+                  FROM {context} ctx
+                  JOIN {local_apiquery_queries} q ON q.createdby = :userid2
+                 WHERE ctx.contextlevel = :contextlevel2";
+        $params = ['userid2' => $userid, 'contextlevel2' => CONTEXT_SYSTEM];
+        $contextlist->add_from_sql($sql, $params);
+
         return $contextlist;
     }
 
@@ -81,8 +102,14 @@ class provider implements
         if (!$context instanceof \context_system) {
             return;
         }
+
+        // Users who executed queries.
         $sql = "SELECT DISTINCT userid FROM {local_apiquery_logs} WHERE userid IS NOT NULL";
         $userlist->add_from_sql('userid', $sql, []);
+
+        // Users who created queries.
+        $sql = "SELECT DISTINCT createdby FROM {local_apiquery_queries} WHERE createdby IS NOT NULL";
+        $userlist->add_from_sql('createdby', $sql, []);
     }
 
     /**
@@ -96,13 +123,23 @@ class provider implements
         }
 
         $userid = $contextlist->get_user()->id;
-        $logs = $DB->get_records('local_apiquery_logs', ['userid' => $userid]);
+        $context = \context_system::instance();
 
+        // Export execution logs.
+        $logs = $DB->get_records('local_apiquery_logs', ['userid' => $userid]);
         if (!empty($logs)) {
-            $context = \context_system::instance();
             \core_privacy\local\request\writer::with_context($context)->export_data(
                 [get_string('pluginname', 'local_apiquery'), get_string('execution_logs', 'local_apiquery')],
                 (object)['logs' => array_values($logs)]
+            );
+        }
+
+        // Export queries created by the user.
+        $queries = $DB->get_records('local_apiquery_queries', ['createdby' => $userid]);
+        if (!empty($queries)) {
+            \core_privacy\local\request\writer::with_context($context)->export_data(
+                [get_string('pluginname', 'local_apiquery'), get_string('manage_queries', 'local_apiquery')],
+                (object)['queries' => array_values($queries)]
             );
         }
     }
@@ -113,7 +150,11 @@ class provider implements
     public static function delete_data_for_all_users_in_context(\context $context): void {
         global $DB;
         if ($context instanceof \context_system) {
+            // Delete all execution logs.
             $DB->delete_records('local_apiquery_logs');
+
+            // Anonymize createdby field for all queries (do not delete queries themselves).
+            $DB->set_field('local_apiquery_queries', 'createdby', null);
         }
     }
 
@@ -123,7 +164,12 @@ class provider implements
     public static function delete_data_for_user(approved_contextlist $contextlist): void {
         global $DB;
         $userid = $contextlist->get_user()->id;
+
+        // Delete execution logs for this user.
         $DB->delete_records('local_apiquery_logs', ['userid' => $userid]);
+
+        // Anonymize queries created by this user (do not delete queries themselves).
+        $DB->set_field('local_apiquery_queries', 'createdby', null, ['createdby' => $userid]);
     }
 
     /**
@@ -135,7 +181,15 @@ class provider implements
         if (!$context instanceof \context_system) {
             return;
         }
-        [$insql, $inparams] = $DB->get_in_or_equal($userlist->get_userids(), SQL_PARAMS_NAMED);
+
+        $userids = $userlist->get_userids();
+        [$insql, $inparams] = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED);
+
+        // Delete execution logs for these users.
         $DB->delete_records_select('local_apiquery_logs', "userid $insql", $inparams);
+
+        // Anonymize queries created by these users (do not delete queries themselves).
+        // Use set_field_select() instead of execute() for better compatibility and performance.
+        $DB->set_field_select('local_apiquery_queries', 'createdby', null, "createdby $insql", $inparams);
     }
 }

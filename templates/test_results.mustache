@@ -1,0 +1,88 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template local_apiquery/test_results
+
+    Test query - execution results display.
+
+    @copyright 2026 CESW <cesarmachado443@gmail.com>
+    @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+
+    Context variables required for this template:
+    * has_error - Boolean indicating error state
+    * error_msg - Error message if has_error is true
+    * has_results - Boolean indicating successful execution
+    * success_msg - Success message with timing info
+    * has_rows - Boolean indicating if results contain rows
+    * no_rows_msg - Message when no rows returned
+    * columns - Array of column names
+    * rows - Array of row objects (array of cell values)
+    * showing_first_msg - Message when results are truncated
+
+    Example context (json):
+    {
+        "has_results": true,
+        "success_msg": "Query executed successfully in 12ms, returned 3 rows",
+        "has_rows": true,
+        "columns": ["id", "username", "email"],
+        "rows": [
+            {"cells": ["42", "jdoe", "jdoe@example.com"]}
+        ]
+    }
+}}
+{{#has_error}}
+<div class="alert alert-danger">
+    <strong>Error:</strong> {{error_msg}}
+</div>
+{{/has_error}}
+
+{{#has_results}}
+<div class="alert alert-success">
+    ✅ {{success_msg}}
+</div>
+
+{{#has_rows}}
+<div class="table-responsive">
+    <table class="table table-sm table-striped table-bordered">
+        <thead class="table-dark">
+            <tr>
+                {{#columns}}
+                <th>{{.}}</th>
+                {{/columns}}
+            </tr>
+        </thead>
+        <tbody>
+            {{#rows}}
+            <tr>
+                {{#cells}}
+                <td>{{.}}</td>
+                {{/cells}}
+            </tr>
+            {{/rows}}
+        </tbody>
+    </table>
+    {{#showing_first_msg}}
+    <p class="text-muted small">{{showing_first_msg}}</p>
+    {{/showing_first_msg}}
+</div>
+{{/has_rows}}
+
+{{^has_rows}}
+<p class="text-muted">{{no_rows_msg}}</p>
+{{/has_rows}}
+
+{{/has_results}}

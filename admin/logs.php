@@ -33,25 +33,25 @@ $PAGE->set_title(get_string('execution_logs', 'local_apiquery'));
 $PAGE->set_heading(get_string('execution_logs', 'local_apiquery'));
 
 // Filters.
-$filterQuery = optional_param('query_id', 0, PARAM_INT);
-$filterPage  = optional_param('page', 0, PARAM_INT);
-$perPage     = 50;
+$filter_query = optional_param('query_id', 0, PARAM_INT);
+$filter_page  = optional_param('page', 0, PARAM_INT);
+$per_page     = 50;
 
-$whereClause = $filterQuery ? 'WHERE l.query_id = :qid' : '';
-$countParams = $filterQuery ? ['qid' => $filterQuery] : [];
+$where_clause = $filter_query ? 'WHERE l.query_id = :qid' : '';
+$count_params = $filter_query ? ['qid' => $filter_query] : [];
 
 $total = $DB->count_records_sql(
-    "SELECT COUNT(*) FROM {local_apiquery_logs} l $whereClause",
-    $countParams
+    "SELECT COUNT(*) FROM {local_apiquery_logs} l $where_clause",
+    $count_params
 );
 
 $logs = $DB->get_records_sql("
     SELECT l.*, q.shortname, q.displayname
     FROM {local_apiquery_logs} l
     LEFT JOIN {local_apiquery_queries} q ON q.id = l.query_id
-    $whereClause
+    $where_clause
     ORDER BY l.timecreated DESC
-", $countParams, $filterPage * $perPage, $perPage);
+", $count_params, $filter_page * $per_page, $per_page);
 
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('execution_logs', 'local_apiquery'));
@@ -63,8 +63,8 @@ $stats = $DB->get_record_sql("
            SUM(rows_returned) AS total_rows,
            COUNT(CASE WHEN error IS NOT NULL THEN 1 END) AS errors
     FROM {local_apiquery_logs}
-    " . ($filterQuery ? 'WHERE query_id = :qid' : ''),
-    $countParams
+    " . ($filter_query ? 'WHERE query_id = :qid' : ''),
+    $count_params
 );
 
 echo html_writer::start_div('row g-3 mb-4');
@@ -103,11 +103,11 @@ if (empty($logs)) {
 
     foreach ($logs as $log) {
         $params = json_decode($log->params_used ?? '{}', true);
-        $paramStr = '';
+        $param_str = '';
         if ($params) {
             $parts = [];
             foreach ($params as $k => $v) $parts[] = "$k=$v";
-            $paramStr = implode(', ', $parts);
+            $param_str = implode(', ', $parts);
         }
 
         $status = empty($log->error)
@@ -117,7 +117,7 @@ if (empty($logs)) {
 
         $table->data[] = [
             html_writer::tag('code', htmlspecialchars($log->shortname ?? '—')),
-            html_writer::tag('small', htmlspecialchars($paramStr ?: '—'), ['class' => 'font-monospace']),
+            html_writer::tag('small', htmlspecialchars($param_str ?: '—'), ['class' => 'font-monospace']),
             number_format($log->rows_returned ?? 0),
             ($log->execution_ms ?? '—') . ' ms',
             $status,
@@ -126,7 +126,7 @@ if (empty($logs)) {
     }
 
     echo html_writer::table($table);
-    echo $OUTPUT->paging_bar($total, $filterPage, $perPage, new moodle_url('/local/apiquery/admin/logs.php', ['query_id' => $filterQuery]));
+    echo $OUTPUT->paging_bar($total, $filter_page, $per_page, new moodle_url('/local/apiquery/admin/logs.php', ['query_id' => $filter_query]));
 }
 
 echo $OUTPUT->footer();

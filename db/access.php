@@ -24,9 +24,9 @@
 defined('MOODLE_INTERNAL') || die();
 
 $capabilities = [
-    // Permiso para ejecutar queries via API (se asigna al rol del token webservice).
-    // RISK_PERSONAL: puede retornar datos personales de usuarios.
-    // RISK_DATALOSS: permite ejecutar DML (INSERT/UPDATE/DELETE) si la query lo tiene.
+    // Permission to execute queries via API (assigned to the webservice token role).
+    // RISK_PERSONAL: can return personal user data.
+    // RISK_DATALOSS: allows executing DML (INSERT/UPDATE/DELETE) if the query contains it.
     'local/apiquery:execute' => [
         'riskbitmask'  => RISK_PERSONAL | RISK_DATALOSS,
         'captype'      => 'read',
@@ -36,9 +36,9 @@ $capabilities = [
         ],
     ],
 
-    // Permiso para administrar queries desde la UI (solo admins).
-    // RISK_CONFIG: puede crear queries SQL arbitrarias (aunque validadas).
-    // RISK_DATALOSS: puede crear queries DML que modifiquen datos de Moodle.
+    // Permission to manage queries from the UI (admins only).
+    // RISK_CONFIG: can create arbitrary SQL queries (although validated).
+    // RISK_DATALOSS: can create DML queries that modify Moodle data.
     'local/apiquery:manage' => [
         'riskbitmask'  => RISK_CONFIG | RISK_DATALOSS,
         'captype'      => 'write',

@@ -1,0 +1,78 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template local_apiquery/edit_dml_confirmation
+
+    Edit query - DML warning confirmation screen.
+
+    @copyright 2026 CESW <cesarmachado443@gmail.com>
+    @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+
+    Context variables required for this template:
+    * warnings - Array of warning messages
+    * form_action - Form action URL
+    * sesskey - Session key
+    * shortname - Query shortname
+    * displayname - Query display name
+    * description - Query description
+    * sqlquery - SQL query text
+    * enabled - Enabled status (0 or 1)
+    * params - Array of parameter objects with name, type, required, default
+    * confirm_btn - Confirm button text
+    * back_btn - Back to edit button text
+    * back_url - Back to edit URL
+
+    Example context (json):
+    {
+        "warnings": ["DELETE detected", "UPDATE detected"],
+        "form_action": "/local/apiquery/admin/edit.php",
+        "sesskey": "abc123",
+        "confirm_btn": "Confirm and Save",
+        "back_btn": "Back to Edit"
+    }
+}}
+<ul class="alert alert-warning">
+    {{#warnings}}
+    <li>{{.}}</li>
+    {{/warnings}}
+</ul>
+
+<form method="post" action="{{form_action}}">
+    <input type="hidden" name="sesskey" value="{{sesskey}}">
+    <input type="hidden" name="confirm_warnings" value="1">
+    <input type="hidden" name="shortname" value="{{shortname}}">
+    <input type="hidden" name="displayname" value="{{displayname}}">
+    <input type="hidden" name="description" value="{{description}}">
+    <input type="hidden" name="sqlquery" value="{{sqlquery}}">
+    <input type="hidden" name="enabled" value="{{enabled}}">
+
+    {{#params}}
+    <input type="hidden" name="param_name[{{index}}]" value="{{name}}">
+    <input type="hidden" name="param_type[{{index}}]" value="{{type}}">
+    <input type="hidden" name="param_required[{{index}}]" value="{{required}}">
+    <input type="hidden" name="param_default[{{index}}]" value="{{default}}">
+    {{/params}}
+
+    <div class="d-flex gap-2 mt-3">
+        <button type="submit" class="btn btn-warning">
+            ⚠️ {{confirm_btn}}
+        </button>
+        <a href="{{back_url}}" class="btn btn-outline-secondary">
+            {{back_btn}}
+        </a>
+    </div>
+</form>

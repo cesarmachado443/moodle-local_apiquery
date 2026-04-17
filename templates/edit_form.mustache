@@ -1,0 +1,197 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template local_apiquery/edit_form
+
+    Edit/create query - main form.
+
+    @copyright 2026 CESW <cesarmachado443@gmail.com>
+    @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+
+    Classes required for JS:
+    * param-row - Parameter table rows (managed by edit_params AMD module)
+
+    Data attributes required for JS:
+    * None
+
+    Context variables required for this template:
+    * form_action - Form action URL
+    * sesskey - Session key
+    * section_identification - Section title
+    * section_sql - Section title
+    * section_params - Section title
+    * section_status - Section title
+    * label_shortname - Field label
+    * label_displayname - Field label
+    * label_description - Field label
+    * label_sqlquery - Field label
+    * label_enabled - Field label
+    * shortname - Current value
+    * displayname - Current value
+    * description - Current value
+    * sqlquery - Current SQL
+    * enabled - Boolean
+    * params - Array of parameter objects
+    * col_name - Column header
+    * col_type - Column header
+    * col_required - Column header
+    * col_default - Column header
+    * col_actions - Column header
+    * add_param_btn - Add parameter button text
+    * save_btn - Save button text
+    * cancel_text - Cancel text
+    * cancel_url - Cancel URL
+    * help_shortname - Help text
+    * help_sqlquery - Help text
+    * placeholder_hint_id - ID for placeholder hint element
+
+    Example context (json):
+    {
+        "form_action": "/local/apiquery/admin/edit.php",
+        "sesskey": "abc123",
+        "shortname": "active_users",
+        "params": [
+            {
+                "index": 0,
+                "name": "since",
+                "type": "int",
+                "is_int": true,
+                "required": "1",
+                "default": "0"
+            }
+        ]
+    }
+}}
+<form method="post" action="{{form_action}}">
+    <input type="hidden" name="sesskey" value="{{sesskey}}">
+
+    <div class="mform">
+
+        {{! SECTION: Identification }}
+        <fieldset class="card mb-4">
+            <div class="card-header fw-bold">{{section_identification}}</div>
+            <div class="card-body">
+
+                <div class="mb-3">
+                    <label for="shortname" class="form-label fw-semibold">
+                        {{label_shortname}} <span class="text-danger">*</span>
+                        <small class="text-muted">{{{help_shortname}}}</small>
+                    </label>
+                    <input type="text" id="shortname" name="shortname"
+                           class="form-control font-monospace" value="{{shortname}}"
+                           placeholder="{{placeholder_shortname}}" pattern="[a-zA-Z0-9_]+" required>
+                    <small class="form-text text-muted">{{{apicall_shortname}}}</small>
+                </div>
+
+                <div class="mb-3">
+                    <label for="displayname" class="form-label fw-semibold">
+                        {{label_displayname}} <span class="text-danger">*</span>
+                    </label>
+                    <input type="text" id="displayname" name="displayname"
+                           class="form-control" value="{{displayname}}"
+                           placeholder="{{placeholder_displayname}}" required>
+                </div>
+
+                <div class="mb-3">
+                    <label for="description" class="form-label fw-semibold">{{label_description}}</label>
+                    <textarea id="description" name="description" class="form-control" rows="2"
+                              placeholder="{{placeholder_description}}">{{description}}</textarea>
+                </div>
+
+                <div class="form-check">
+                    <input type="checkbox" id="enabled" name="enabled" value="1"
+                           class="form-check-input" {{#enabled}}checked{{/enabled}}>
+                    <label for="enabled" class="form-check-label">{{label_enabled}}</label>
+                </div>
+
+            </div>
+        </fieldset>
+
+        {{! SECTION: SQL Query }}
+        <fieldset class="card mb-4">
+            <div class="card-header fw-bold">{{section_sql}}</div>
+            <div class="card-body">
+
+                <div class="alert alert-warning py-2">
+                    <strong>{{{sql_security_title}}}</strong>
+                    {{{help_sqlquery}}}
+                </div>
+
+                <label for="id_sqlquery" class="form-label fw-semibold">
+                    {{label_sqlquery}} <span class="text-danger">*</span>
+                </label>
+                <textarea id="id_sqlquery" name="sqlquery"
+                          class="form-control font-monospace" rows="12"
+                          placeholder="{{placeholder_sql}}" required>{{sqlquery}}</textarea>
+
+                <div id="placeholder-hint" class="form-text text-info mt-1"></div>
+
+            </div>
+        </fieldset>
+
+        {{! SECTION: Parameters }}
+        <fieldset class="card mb-4">
+            <div class="card-header fw-bold">{{section_params}}</div>
+            <div class="card-body">
+
+                <p class="text-muted">{{parameters_intro}}: <code>:placeholders</code></p>
+
+                <table class="table table-bordered" id="params-table">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{{col_name}}</th>
+                            <th>{{col_type}}</th>
+                            <th>{{col_required}}</th>
+                            <th>{{col_default}}</th>
+                            <th>{{col_actions}}</th>
+                        </tr>
+                    </thead>
+                    <tbody id="params-container">
+                        {{#params}}
+                        <tr class="param-row">
+                            <td><input type="text" name="param_name[]" value="{{name}}" class="form-control form-control-sm font-monospace" placeholder="{{placeholder_param_name}}"></td>
+                            <td>
+                                <select name="param_type[]" class="form-select form-select-sm">
+                                    <option value="int" {{#is_int}}selected{{/is_int}}>int (integer)</option>
+                                    <option value="text" {{#is_text}}selected{{/is_text}}>text (string)</option>
+                                    <option value="float" {{#is_float}}selected{{/is_float}}>float (decimal number)</option>
+                                    <option value="bool" {{#is_bool}}selected{{/is_bool}}>bool (boolean)</option>
+                                </select>
+                            </td>
+                            <td class="text-center">
+                                <input type="checkbox" name="param_required[]" value="{{index}}" {{#required_checked}}checked{{/required_checked}} class="form-check-input">
+                            </td>
+                            <td><input type="text" name="param_default[]" value="{{default}}" class="form-control form-control-sm" placeholder="{{placeholder_no_default}}"></td>
+                            <td><button type="button" class="btn btn-sm btn-outline-danger remove-param">✕</button></td>
+                        </tr>
+                        {{/params}}
+                    </tbody>
+                </table>
+
+                <button type="button" id="add-param" class="btn btn-outline-secondary btn-sm">{{add_param_btn}}</button>
+
+            </div>
+        </fieldset>
+
+        {{! Form Actions }}
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">{{save_btn}}</button>
+            <a href="{{cancel_url}}" class="btn btn-outline-secondary">{{cancel_text}}</a>
+        </div>
+
+    </div>
+</form>

@@ -38,11 +38,11 @@ if ($step === 'download') {
     confirm_sesskey();
 
     // Read selected IDs (array of ints).
-    $selectedIds = array_filter(
+    $selected_ids = array_filter(
         array_map('intval', (array) optional_param_array('qids', [], PARAM_INT))
     );
 
-    if (empty($selectedIds)) {
+    if (empty($selected_ids)) {
         // No IDs selected — redirect back with error.
         redirect(
             new moodle_url('/local/apiquery/admin/export.php'),
@@ -52,7 +52,7 @@ if ($step === 'download') {
         );
     }
 
-    [$insql, $inparams] = $DB->get_in_or_equal($selectedIds, SQL_PARAMS_NAMED);
+    [$insql, $inparams] = $DB->get_in_or_equal($selected_ids, SQL_PARAMS_NAMED);
     $queries = $DB->get_records_select(
         'local_apiquery_queries',
         "id $insql",
@@ -85,8 +85,24 @@ if ($step === 'download') {
         ];
     }
 
-    $json     = json_encode($export, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $json = json_encode($export, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+    // Verify JSON encoding succeeded.
+    if ($json === false || json_last_error() !== JSON_ERROR_NONE) {
+        redirect(
+            new moodle_url('/local/apiquery/admin/export.php'),
+            get_string('export_json_encode_error', 'local_apiquery', json_last_error_msg()),
+            null,
+            \core\output\notification::NOTIFY_ERROR
+        );
+    }
+
     $filename = 'apiquery_queries_' . date('Ymd_His') . '.json';
+
+    // Clean output buffer to prevent any previous output from corrupting the JSON.
+    while (ob_get_level()) {
+        ob_end_clean();
+    }
 
     header('Content-Type: application/json; charset=utf-8');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
@@ -103,12 +119,12 @@ $PAGE->set_url(new moodle_url('/local/apiquery/admin/export.php'));
 
 $queries = $DB->get_records('local_apiquery_queries', null, 'shortname ASC');
 
-$pageTitle = get_string('export_queries', 'local_apiquery');
-$PAGE->set_title($pageTitle);
-$PAGE->set_heading($pageTitle);
+$page_title = get_string('export_queries', 'local_apiquery');
+$PAGE->set_title($page_title);
+$PAGE->set_heading($page_title);
 
 echo $OUTPUT->header();
-echo $OUTPUT->heading($pageTitle);
+echo $OUTPUT->heading($page_title);
 
 echo html_writer::link(
     new moodle_url('/local/apiquery/admin/index.php'),
@@ -123,76 +139,39 @@ if (empty($queries)) {
 }
 
 // JS for select-all / deselect-all.
-$PAGE->requires->js_amd_inline("
-require(['jquery'], function(\$) {
-    \$('#export-select-all').on('click', function() {
-        \$('.export-qid').prop('checked', true);
-    });
-    \$('#export-deselect-all').on('click', function() {
-        \$('.export-qid').prop('checked', false);
-    });
-});
-");
-?>
+$PAGE->requires->js_call_amd('local_apiquery/export_select', 'init');
 
-<form method="post">
-  <input type="hidden" name="sesskey" value="<?= sesskey() ?>">
-  <input type="hidden" name="step"    value="download">
+// Build queries array for template.
+$queries_data = [];
+foreach ($queries as $q) {
+    $params      = json_decode($q->parameters ?? '[]', true) ?: [];
+    $param_names = implode(', ', array_map(fn($p) => ':' . $p['name'], $params));
 
-  <div class="mb-3 d-flex gap-2">
-    <button type="button" id="export-select-all"   class="btn btn-sm btn-outline-secondary">
-      <?= get_string('export_select_all',   'local_apiquery') ?>
-    </button>
-    <button type="button" id="export-deselect-all" class="btn btn-sm btn-outline-secondary">
-      <?= get_string('export_deselect_all', 'local_apiquery') ?>
-    </button>
-  </div>
+    $queries_data[] = [
+        'id'          => $q->id,
+        'shortname'   => htmlspecialchars($q->shortname),
+        'displayname' => htmlspecialchars($q->displayname),
+        'description' => htmlspecialchars($q->description ?? ''),
+        'param_names' => $param_names,
+        'enabled'     => (bool) $q->enabled,
+        'badge_class' => $q->enabled ? 'bg-success text-white' : 'bg-secondary text-white',
+        'badge_text'  => $q->enabled
+            ? get_string('active', 'local_apiquery')
+            : get_string('inactive', 'local_apiquery'),
+    ];
+}
 
-  <?php
-  $table             = new html_table();
-  $table->head       = [
-      html_writer::tag('span', get_string('export_col_select', 'local_apiquery'), ['class' => 'visually-hidden']) .
-          html_writer::tag('input', '', ['type' => 'checkbox', 'id' => 'export-check-all',
-              'title' => get_string('export_select_all', 'local_apiquery'),
-              'class' => 'form-check-input',
-              'onchange' => "document.querySelectorAll('.export-qid').forEach(c => c.checked = this.checked)"]),
-      get_string('shortname',   'local_apiquery'),
-      get_string('displayname', 'local_apiquery'),
-      get_string('parameters',  'local_apiquery'),
-      get_string('status',      'local_apiquery'),
-  ];
-  $table->attributes = ['class' => 'generaltable table table-hover'];
+$template_data = [
+    'sesskey'          => sesskey(),
+    'select_all_btn'   => get_string('export_select_all', 'local_apiquery'),
+    'deselect_all_btn' => get_string('export_deselect_all', 'local_apiquery'),
+    'queries'          => $queries_data,
+    'col_shortname'    => get_string('shortname', 'local_apiquery'),
+    'col_displayname'  => get_string('displayname', 'local_apiquery'),
+    'col_parameters'   => get_string('parameters', 'local_apiquery'),
+    'col_status'       => get_string('status', 'local_apiquery'),
+    'export_btn'       => get_string('export_selected_btn', 'local_apiquery'),
+];
 
-  foreach ($queries as $q) {
-      $params     = json_decode($q->parameters ?? '[]', true) ?: [];
-      $paramNames = implode(', ', array_map(fn($p) => ':' . $p['name'], $params));
-      $badge = $q->enabled
-          ? html_writer::span(get_string('active',   'local_apiquery'), 'badge bg-success text-white')
-          : html_writer::span(get_string('inactive', 'local_apiquery'), 'badge bg-secondary text-white');
-
-      $table->data[] = [
-          html_writer::tag('input', '', [
-              'type'  => 'checkbox',
-              'name'  => 'qids[]',
-              'value' => $q->id,
-              'class' => 'form-check-input export-qid',
-              'checked' => true,
-          ]),
-          html_writer::tag('code', htmlspecialchars($q->shortname)),
-          htmlspecialchars($q->displayname) .
-              html_writer::tag('small', '<br>' . htmlspecialchars($q->description ?? ''), ['class' => 'text-muted']),
-          $paramNames ?: html_writer::span('—', 'text-muted'),
-          $badge,
-      ];
-  }
-
-  echo html_writer::table($table);
-  ?>
-
-  <button type="submit" class="btn btn-primary mt-2">
-    ↑ <?= get_string('export_selected_btn', 'local_apiquery') ?>
-  </button>
-</form>
-
-<?php
+echo $OUTPUT->render_from_template('local_apiquery/export_form', $template_data);
 echo $OUTPUT->footer();

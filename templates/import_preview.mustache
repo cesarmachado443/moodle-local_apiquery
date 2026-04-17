@@ -1,0 +1,120 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template local_apiquery/import_preview
+
+    Import queries - preview table and confirmation form.
+
+    @copyright 2026 CESW <cesarmachado443@gmail.com>
+    @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+
+    Classes required for JS:
+    * import-qcheck - Individual query checkboxes
+
+    Data attributes required for JS:
+    * None
+
+    Context variables required for this template:
+    * preview_title - Table heading
+    * queries - Array of query objects with shortname, displayname, exists, badge_class, badge_text
+    * sesskey - Session key
+    * jsondata - Raw JSON data (escaped)
+    * conflict_mode_label - Label for conflict resolution
+    * option_skip_label - Skip conflicts option
+    * option_overwrite_label - Overwrite option
+    * confirm_btn - Confirm button text
+    * cancel_text - Cancel button text
+    * cancel_url - URL to cancel
+    * col_shortname - Column header
+    * col_displayname - Column header
+    * col_status - Column header
+    * select_all_label - Accessibility label
+
+    Example context (json):
+    {
+        "preview_title": "Preview queries to import",
+        "queries": [
+            {
+                "shortname": "active_users",
+                "displayname": "Active Users",
+                "exists": true,
+                "badge_class": "bg-warning text-dark",
+                "badge_text": "Will overwrite"
+            }
+        ]
+    }
+}}
+<h5 class="mb-3">{{preview_title}}</h5>
+
+<form method="post">
+    <input type="hidden" name="sesskey" value="{{sesskey}}">
+    <input type="hidden" name="step" value="confirm">
+
+    <table class="generaltable table table-sm table-hover">
+        <thead>
+            <tr>
+                <th>
+                    <input type="checkbox" id="import-check-all" class="form-check-input" checked
+                           title="{{select_all_label}}">
+                </th>
+                <th>{{col_shortname}}</th>
+                <th>{{col_displayname}}</th>
+                <th>{{col_status}}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{#queries}}
+            <tr>
+                <td>
+                    <input type="checkbox" name="selected_shortnames[]" value="{{shortname}}"
+                           class="form-check-input import-qcheck" checked>
+                </td>
+                <td><code>{{shortname}}</code></td>
+                <td>{{displayname}}</td>
+                <td><span class="badge {{badge_class}}">{{badge_text}}</span></td>
+            </tr>
+            {{/queries}}
+        </tbody>
+    </table>
+
+    <div class="card mb-4" style="max-width:440px">
+        <div class="card-body">
+            <p class="fw-semibold mb-2">{{conflict_mode_label}}</p>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="conflict" id="conflict_skip" value="skip" checked>
+                <label class="form-check-label" for="conflict_skip">
+                    {{option_skip_label}}
+                </label>
+            </div>
+            <div class="form-check mt-1">
+                <input class="form-check-input" type="radio" name="conflict" id="conflict_overwrite" value="overwrite">
+                <label class="form-check-label" for="conflict_overwrite">
+                    {{option_overwrite_label}}
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary">
+            {{confirm_btn}}
+        </button>
+        <a href="{{cancel_url}}" class="btn btn-outline-secondary">
+            {{cancel_text}}
+        </a>
+    </div>
+</form>
