@@ -132,12 +132,12 @@ if (empty($queries)) {
             html_writer::link($edit_url,   '✏️ ' . get_string('edit'),   ['class' => 'btn btn-sm btn-outline-primary']),
             html_writer::link($test_url,   '▶️ ' . get_string('test', 'local_apiquery'),   ['class' => 'btn btn-sm btn-outline-info']),
             html_writer::link($toggle_url, $q->enabled ? '⏸ ' . get_string('disable', 'local_apiquery') : '▶ ' . get_string('enable', 'local_apiquery'), ['class' => 'btn btn-sm btn-outline-warning']),
-            html_writer::link($delete_url, '🗑 ' . get_string('delete'), ['class' => 'btn btn-sm btn-outline-danger', 'onclick' => "return confirm('" . get_string('confirm_delete', 'local_apiquery') . "')"]),
+            html_writer::link($delete_url, '🗑 ' . get_string('delete'), ['class' => 'btn btn-sm btn-outline-danger', 'onclick' => "return confirm(" . json_encode(get_string('confirm_delete', 'local_apiquery')) . ")"]),
         ]);
 
         $table->data[] = [
             html_writer::tag('code', $q->shortname),
-            $q->displayname . html_writer::tag('small', '<br>' . ($q->description ?? ''), ['class' => 'text-muted']),
+            htmlspecialchars($q->displayname) . html_writer::tag('small', '<br>' . htmlspecialchars($q->description ?? ''), ['class' => 'text-muted']),
             $param_names ?: html_writer::span('—', 'text-muted'),
             $status_badge,
             number_format($q->total_executions),

@@ -221,8 +221,8 @@ if ($step === 'preview') {
         $exists    = isset($existing_set[$shortname]);
 
         $queries[] = [
-            'shortname'   => htmlspecialchars($shortname),
-            'displayname' => htmlspecialchars($q['displayname'] ?? ''),
+            'shortname'   => $shortname,
+            'displayname' => $q['displayname'] ?? '',
             'exists'      => $exists,
             'badge_class' => $exists ? 'bg-warning text-dark' : 'bg-success text-white',
             'badge_text'  => $exists

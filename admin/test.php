@@ -127,11 +127,11 @@ echo html_writer::link(
 $params_data = [];
 foreach ($params as $p) {
     $params_data[] = [
-        'name'           => htmlspecialchars($p['name']),
-        'type'           => htmlspecialchars($p['type']),
+        'name'           => $p['name'],
+        'type'           => $p['type'],
         'required'       => (bool) $p['required'],
-        'default'        => htmlspecialchars($p['default'] ?? ''),
-        'value'          => htmlspecialchars(optional_param('tp_' . $p['name'], $p['default'] ?? '', PARAM_TEXT)),
+        'default'        => $p['default'] ?? '',
+        'value'          => optional_param('tp_' . $p['name'], $p['default'] ?? '', PARAM_TEXT),
         'required_label' => $p['required']
             ? get_string('param_required_label', 'local_apiquery')
             : get_string('param_optional_label', 'local_apiquery'),
@@ -156,7 +156,7 @@ if ($exec_error || $results !== null) {
 
     if ($exec_error) {
         $results_data['has_error'] = true;
-        $results_data['error_msg'] = htmlspecialchars($exec_error);
+        $results_data['error_msg'] = $exec_error;
     } else if ($results !== null) {
         $success_obj = new stdClass();
         $success_obj->ms   = $exec_ms;
@@ -174,7 +174,7 @@ if ($exec_error || $results !== null) {
             foreach (array_slice($results, 0, 100) as $row) {
                 $cells = [];
                 foreach ($row as $val) {
-                    $cells[] = htmlspecialchars((string)($val ?? 'NULL'));
+                    $cells[] = (string)($val ?? 'NULL');
                 }
                 $rows_data[] = ['cells' => $cells];
             }
@@ -192,7 +192,7 @@ if ($exec_error || $results !== null) {
 // SQL display card.
 $sql_display_data = [
     'card_title' => get_string('sql_card_title', 'local_apiquery'),
-    'sqlquery'   => htmlspecialchars($query->sqlquery),
+    'sqlquery'   => $query->sqlquery,
 ];
 echo $OUTPUT->render_from_template('local_apiquery/test_sql_display', $sql_display_data);
 

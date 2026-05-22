@@ -181,21 +181,21 @@ if (!empty($needs_confirmation) && empty($errors)):
     foreach ($current_params as $i => $p) {
         $params_array[] = [
             'index'    => $i,
-            'name'     => htmlspecialchars($p['name'] ?? ''),
-            'type'     => htmlspecialchars($p['type'] ?? 'text'),
+            'name'     => $p['name'] ?? '',
+            'type'     => $p['type'] ?? 'text',
             'required' => (int)($p['required'] ?? 0),
-            'default'  => htmlspecialchars($p['default'] ?? ''),
+            'default'  => $p['default'] ?? '',
         ];
     }
 
     $confirmation_data = [
-        'warnings'     => array_map('htmlspecialchars', $sql_warnings),
+        'warnings'     => $sql_warnings,
         'form_action'  => (new moodle_url('/local/apiquery/admin/edit.php', $is_edit ? ['id' => $query_id] : []))->out(false),
         'sesskey'      => sesskey(),
-        'shortname'    => htmlspecialchars($existing->shortname ?? ''),
-        'displayname'  => htmlspecialchars($existing->displayname ?? ''),
-        'description'  => htmlspecialchars($existing->description ?? ''),
-        'sqlquery'     => htmlspecialchars($existing->sqlquery ?? ''),
+        'shortname'    => $existing->shortname ?? '',
+        'displayname'  => $existing->displayname ?? '',
+        'description'  => $existing->description ?? '',
+        'sqlquery'     => $existing->sqlquery ?? '',
         'enabled'      => (int)($existing->enabled ?? 1),
         'params'       => $params_array,
         'confirm_btn'  => get_string('confirm_dml', 'local_apiquery'),
@@ -207,7 +207,7 @@ if (!empty($needs_confirmation) && empty($errors)):
     echo $OUTPUT->footer();
     exit;
 endif;
-// ── END DML WARNING SCREEN ────────────────────────────────────────────────
+// END DML WARNING SCREEN 
 
 // Display validation errors.
 foreach ($errors as $error) {
@@ -221,15 +221,15 @@ foreach ($current_params as $i => $param) {
     $type = $param['type'] ?? 'text';
     $params_data[] = [
         'index'            => $i,
-        'name'             => htmlspecialchars($param['name']),
-        'type'             => htmlspecialchars($type),
+        'name'             => $param['name'],
+        'type'             => $type,
         'is_int'           => $type === 'int',
         'is_text'          => $type === 'text',
         'is_float'         => $type === 'float',
         'is_bool'          => $type === 'bool',
         'required'         => ($param['required'] ?? 0) ? '1' : '0',
         'required_checked' => (bool)($param['required'] ?? 0),
-        'default'          => htmlspecialchars($param['default'] ?? ''),
+        'default'          => $param['default'] ?? '',
     ];
 }
 
@@ -245,10 +245,10 @@ $form_data = [
     'label_description'     => get_string('description', 'local_apiquery'),
     'label_sqlquery'        => 'SQL',
     'label_enabled'         => get_string('field_enabled_label', 'local_apiquery'),
-    'shortname'             => htmlspecialchars($existing->shortname ?? ''),
-    'displayname'           => htmlspecialchars($existing->displayname ?? ''),
-    'description'           => htmlspecialchars($existing->description ?? ''),
-    'sqlquery'              => htmlspecialchars($existing->sqlquery ?? ''),
+    'shortname'             => $existing->shortname ?? '',
+    'displayname'           => $existing->displayname ?? '',
+    'description'           => $existing->description ?? '',
+    'sqlquery'              => $existing->sqlquery ?? '',
     'enabled'               => (bool)($existing->enabled ?? 1),
     'params'                => $params_data,
     'col_name'              => get_string('param_col_name', 'local_apiquery'),

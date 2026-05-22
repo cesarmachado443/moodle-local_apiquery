@@ -149,9 +149,9 @@ foreach ($queries as $q) {
 
     $queries_data[] = [
         'id'          => $q->id,
-        'shortname'   => htmlspecialchars($q->shortname),
-        'displayname' => htmlspecialchars($q->displayname),
-        'description' => htmlspecialchars($q->description ?? ''),
+        'shortname'   => $q->shortname,
+        'displayname' => $q->displayname,
+        'description' => $q->description ?? '',
         'param_names' => $param_names,
         'enabled'     => (bool) $q->enabled,
         'badge_class' => $q->enabled ? 'bg-success text-white' : 'bg-secondary text-white',

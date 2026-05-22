@@ -181,7 +181,7 @@ class external extends \core_external\external_api {
                 new \external_multiple_structure(
                     new \external_single_structure([
                         'key'   => new \external_value(PARAM_TEXT, get_string('ws_ret_field_key',   'local_apiquery')),
-                        'value' => new \external_value(PARAM_TEXT, get_string('ws_ret_field_value', 'local_apiquery'), VALUE_OPTIONAL, null),
+                        'value' => new \external_value(PARAM_RAW,  get_string('ws_ret_field_value', 'local_apiquery'), VALUE_OPTIONAL, null),
                     ])
                 ),
                 get_string('ws_ret_rows', 'local_apiquery')

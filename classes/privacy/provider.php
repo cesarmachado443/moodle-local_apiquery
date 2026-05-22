@@ -75,19 +75,19 @@ class provider implements
     public static function get_contexts_for_userid(int $userid): contextlist {
         $contextlist = new contextlist();
 
-        // Add context if user has execution logs.
+        // Add system context if user has execution logs.
         $sql = "SELECT ctx.id
                   FROM {context} ctx
-                  JOIN {local_apiquery_logs} l ON l.userid = :userid
-                 WHERE ctx.contextlevel = :contextlevel";
+                 WHERE ctx.contextlevel = :contextlevel
+                   AND EXISTS (SELECT 1 FROM {local_apiquery_logs} l WHERE l.userid = :userid)";
         $params = ['userid' => $userid, 'contextlevel' => CONTEXT_SYSTEM];
         $contextlist->add_from_sql($sql, $params);
 
-        // Add context if user created queries.
+        // Add system context if user created queries.
         $sql = "SELECT ctx.id
                   FROM {context} ctx
-                  JOIN {local_apiquery_queries} q ON q.createdby = :userid2
-                 WHERE ctx.contextlevel = :contextlevel2";
+                 WHERE ctx.contextlevel = :contextlevel2
+                   AND EXISTS (SELECT 1 FROM {local_apiquery_queries} q WHERE q.createdby = :userid2)";
         $params = ['userid2' => $userid, 'contextlevel2' => CONTEXT_SYSTEM];
         $contextlist->add_from_sql($sql, $params);
 
